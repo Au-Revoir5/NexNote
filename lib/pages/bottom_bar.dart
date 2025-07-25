@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'home.dart';
 import 'notes.dart';
+import 'search.dart';
 
 // Constants for reuse
 const kPrimaryColor = Color(0xFF6366F1);
@@ -20,7 +21,7 @@ class _BottomBarState extends State<BottomBar> {
 
   static final List<Widget> _pages = <Widget>[
     HomePage(),
-    Center(child: Text('Search')),
+    SearchPage(),
     Center(child: Text('Add')),
     Center(child: Text('Tools')),
     NotesPage(),

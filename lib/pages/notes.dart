@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
 
+const kPrimaryColor = Color(0xFF6366F1);
+const kDarkSurface = Color(0xFF1C1C1E);
+const kCardColor = Color(0xFF2C2C2E);
+const kAccentYellow = Color(0xFFFBBF24);
+
 class NotesPage extends StatefulWidget {
   const NotesPage({super.key});
 
@@ -13,15 +18,17 @@ class _NotesPageState extends State<NotesPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: kDarkSurface,
       appBar: AppBar(
+        backgroundColor: kDarkSurface,
         leading: const Icon(Icons.menu, color: Colors.white),
         title: const Text('My Notes'),
         actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 16),
-            child: const CircleAvatar(
+          const Padding(
+            padding: EdgeInsets.only(right: 16),
+            child: CircleAvatar(
               radius: 18,
-              backgroundColor: Color(0xFF2C2C2E),
+              backgroundColor: kCardColor,
               child: Icon(Icons.person, color: Colors.white, size: 20),
             ),
           ),
@@ -34,7 +41,7 @@ class _NotesPageState extends State<NotesPage> {
             padding: const EdgeInsets.all(16),
             child: Container(
               decoration: BoxDecoration(
-                color: const Color(0xFF2C2C2E),
+                color: kCardColor,
                 borderRadius: BorderRadius.circular(25),
               ),
               child: TextField(
@@ -71,7 +78,7 @@ class _NotesPageState extends State<NotesPage> {
                             child: Container(
                               height: 80,
                               decoration: BoxDecoration(
-                                color: const Color(0xFF6366F1),
+                                color: kPrimaryColor,
                                 borderRadius: BorderRadius.circular(16),
                               ),
                               child: const Icon(Icons.add, color: Colors.white, size: 32),
@@ -89,7 +96,7 @@ class _NotesPageState extends State<NotesPage> {
                             child: Container(
                               height: 80,
                               decoration: BoxDecoration(
-                                color: const Color(0xFFFBBF24),
+                                color: kAccentYellow,
                                 borderRadius: BorderRadius.circular(16),
                               ),
                               child: const Icon(Icons.star, color: Colors.white, size: 32),
@@ -107,7 +114,7 @@ class _NotesPageState extends State<NotesPage> {
                             child: Container(
                               height: 80,
                               decoration: BoxDecoration(
-                                color: const Color(0xFF4B5563),
+                                color: Color(0xFF4B5563),
                                 borderRadius: BorderRadius.circular(16),
                               ),
                               child: const Icon(Icons.delete, color: Colors.white, size: 32),
@@ -119,7 +126,6 @@ class _NotesPageState extends State<NotesPage> {
 
                     const SizedBox(height: 24),
 
-                    // Folders Section
                     const Text(
                       'Folder',
                       style: TextStyle(
@@ -131,7 +137,6 @@ class _NotesPageState extends State<NotesPage> {
 
                     const SizedBox(height: 16),
 
-                    // Folder Grid
                     GridView.count(
                       crossAxisCount: 2,
                       shrinkWrap: true,
@@ -140,28 +145,15 @@ class _NotesPageState extends State<NotesPage> {
                       mainAxisSpacing: 16,
                       childAspectRatio: 3,
                       children: const [
-                        FolderItem(
-                          name: 'Calculus',
-                          color: Color(0xFFFBBF24),
-                        ),
-                        FolderItem(
-                          name: 'HCI',
-                          color: Color(0xFF3B82F6),
-                        ),
-                        FolderItem(
-                          name: 'AlgoPro',
-                          color: Color(0xFFEF4444),
-                        ),
-                        FolderItem(
-                          name: 'Sciecomp',
-                          color: Color(0xFF10B981),
-                        ),
+                        FolderItem(name: 'Calculus', color: kAccentYellow),
+                        FolderItem(name: 'HCI', color: Color(0xFF3B82F6)),
+                        FolderItem(name: 'AlgoPro', color: Color(0xFFEF4444)),
+                        FolderItem(name: 'Sciecomp', color: Color(0xFF10B981)),
                       ],
                     ),
 
                     const SizedBox(height: 24),
 
-                    // Recent Notes Section
                     Row(
                       children: const [
                         Text(
@@ -179,25 +171,12 @@ class _NotesPageState extends State<NotesPage> {
 
                     const SizedBox(height: 16),
 
-                    // Notes List
-                    NoteItem(
-                      title: 'Rangkuman Kuis HCI',
-                      subtitle: 'Last edited 1 hour',
-                    ),
-                    NoteItem(
-                      title: 'UAS Sciecomp',
-                      subtitle: 'Last edited 1 day ago',
-                    ),
-                    NoteItem(
-                      title: 'Trigono subs',
-                      subtitle: 'Last edited 2 days ago',
-                    ),
-                    NoteItem(
-                      title: 'Cara menemukan Pacar',
-                      subtitle: 'Last edited 5 days ago',
-                    ),
+                    const NoteItem(title: 'Rangkuman Kuis HCI', subtitle: 'Last edited 1 hour'),
+                    const NoteItem(title: 'UAS Sciecomp', subtitle: 'Last edited 1 day ago'),
+                    const NoteItem(title: 'Trigono subs', subtitle: 'Last edited 2 days ago'),
+                    const NoteItem(title: 'Cara menemukan Pacar', subtitle: 'Last edited 5 days ago'),
 
-                    const SizedBox(height: 100), // Space for bottom navigation
+                    const SizedBox(height: 100),
                   ],
                 ),
               ),
@@ -219,7 +198,7 @@ class FolderItem extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFF2C2C2E),
+        color: kCardColor,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
@@ -275,12 +254,11 @@ class NoteItem extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF2C2C2E),
+        color: kCardColor,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
         children: [
-          // Note preview icon
           Container(
             width: 40,
             height: 40,

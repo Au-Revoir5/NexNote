@@ -94,7 +94,7 @@ class _HomePageState extends State<HomePage>
             padding: EdgeInsets.only(right: 16),
             child: CircleAvatar(
               radius: 18,
-              backgroundColor: kCardColor,
+              backgroundColor: kDarkSurface,
               child: Icon(Icons.person, color: Colors.white, size: 20),
             ),
           ),
