@@ -87,19 +87,6 @@ class _HomePageState extends State<HomePage>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        leading: Icon(Icons.menu, color: Colors.white),
-        actions: [
-          Padding(
-            padding: EdgeInsets.only(right: 16),
-            child: CircleAvatar(
-              radius: 18,
-              backgroundColor: kDarkSurface,
-              child: Icon(Icons.person, color: Colors.white, size: 20),
-            ),
-          ),
-        ],
-      ),
       body: SingleChildScrollView(
         padding: EdgeInsets.all(20),
         child: Column(

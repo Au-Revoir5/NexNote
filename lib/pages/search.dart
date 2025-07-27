@@ -60,30 +60,6 @@ class _SearchPageState extends State<SearchPage> {
       body: SafeArea(
         child: Column(
           children: [
-            // Sticky Header (burger + profile)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.menu,
-                    color: Colors.white,
-                    size: 24,
-                  ),
-                  const Spacer(),
-                  const CircleAvatar(
-                    radius: 18,
-                    backgroundColor: kCardColor,
-                    child: Icon(
-                      Icons.person,
-                      color: Colors.white,
-                      size: 20,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
             // Scrollable Area
             Expanded(
               child: SingleChildScrollView(

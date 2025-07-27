@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'side_bar.dart';
 import 'home.dart';
 import 'notes.dart';
 import 'search.dart';
@@ -22,8 +23,8 @@ class _BottomBarState extends State<BottomBar> {
   static final List<Widget> _pages = <Widget>[
     HomePage(),
     SearchPage(),
-    Center(child: Text('Add')),
-    Center(child: Text('Tools')),
+    Center(child: Text('Add', style: TextStyle(color: Colors.white, fontSize: 24))),
+    Center(child: Text('Tools', style: TextStyle(color: Colors.white, fontSize: 24))),
     NotesPage(),
   ];
 
@@ -36,17 +37,42 @@ class _BottomBarState extends State<BottomBar> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: _pages[_currentIndex],
-
+      appBar: AppBar(
+        title: Text(_getPageTitle()),
+        backgroundColor: kDarkSurface,
+        elevation: 0,
+        titleTextStyle: TextStyle(
+          color: Colors.white,
+          fontSize: 20,
+          fontWeight: FontWeight.w600,
+        ),
+        iconTheme: IconThemeData(color: Colors.white),
+      ),
+      drawer: SideBar(onNavigate: _onTabTapped), // Pass the navigation callback
+      body: AnimatedSwitcher(
+      duration: const Duration(milliseconds: 300),
+      transitionBuilder: (Widget child, Animation<double> animation) {
+        return SlideTransition(
+          position: animation.drive(
+            Tween(begin: const Offset(0.1, 0), end: Offset.zero)
+              .chain(CurveTween(curve: Curves.easeOut)),
+          ),
+          child: child,
+        );
+      },
+      child: Container(
+        key: ValueKey<int>(_currentIndex),
+        child: _pages[_currentIndex],
+      ),
+    ),
       floatingActionButton: FloatingActionButton(
         backgroundColor: kPrimaryColor,
         onPressed: () => _onTabTapped(2),
         child: const Icon(Icons.add, color: Colors.white),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-
       bottomNavigationBar: Padding(
-        padding: const EdgeInsets.only(bottom: 12), // add bottom margin
+        padding: const EdgeInsets.only(bottom: 12),
         child: Container(
           height: 60,
           color: kDarkSurface,
@@ -65,50 +91,56 @@ class _BottomBarState extends State<BottomBar> {
     );
   }
 
+  String _getPageTitle() {
+    switch (_currentIndex) {
+      case 4: return 'My Notes';
+      default: return '';
+    }
+  }
+
   Widget _buildTabItem({
-  required IconData icon,
-  required int index,
-  required String label,
-}) {
-  final bool isSelected = _currentIndex == index;
+    required IconData icon,
+    required int index,
+    required String label,
+  }) {
+    final bool isSelected = _currentIndex == index;
 
-  return GestureDetector(
-    onTap: () => _onTabTapped(index),
-    child: AnimatedContainer(
-      duration: const Duration(milliseconds: 200),
-      curve: Curves.easeOut,
-      width: 60,
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      decoration: BoxDecoration(
-        color: isSelected ? kPrimaryColor.withOpacity(0.1) : Colors.transparent,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          AnimatedScale(
-            scale: isSelected ? 1.2 : 1.0,
-            duration: const Duration(milliseconds: 200),
-            child: Icon(
-              icon,
-              color: isSelected ? kPrimaryColor : Colors.grey,
+    return GestureDetector(
+      onTap: () => _onTabTapped(index),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+        width: 60,
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected ? kPrimaryColor.withOpacity(0.1) : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            AnimatedScale(
+              scale: isSelected ? 1.2 : 1.0,
+              duration: const Duration(milliseconds: 200),
+              child: Icon(
+                icon,
+                color: isSelected ? kPrimaryColor : Colors.grey,
+              ),
             ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              color: isSelected ? kPrimaryColor : Colors.grey,
-              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                color: isSelected ? kPrimaryColor : Colors.grey,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
-    ),
-  );
-}
-
+    );
+  }
 
   Widget _buildCenterLabel({required int index, required String label}) {
     final bool isSelected = _currentIndex == index;

@@ -19,21 +19,6 @@ class _NotesPageState extends State<NotesPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: kDarkSurface,
-      appBar: AppBar(
-        backgroundColor: kDarkSurface,
-        leading: const Icon(Icons.menu, color: Colors.white),
-        title: const Text('My Notes'),
-        actions: [
-          const Padding(
-            padding: EdgeInsets.only(right: 16),
-            child: CircleAvatar(
-              radius: 18,
-              backgroundColor: kCardColor,
-              child: Icon(Icons.person, color: Colors.white, size: 20),
-            ),
-          ),
-        ],
-      ),
       body: Column(
         children: [
           // Search Bar
