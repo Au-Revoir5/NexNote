@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'favorites.dart';
 
 const kPrimaryColor = Color(0xFF6366F1);
 const kDarkSurface = Color(0xFF1C1C1E);
@@ -74,8 +75,9 @@ class _NotesPageState extends State<NotesPage> {
                         Expanded(
                           child: GestureDetector(
                             onTap: () {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Starred Notes Clicked')),
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (context) => FavoritesPage()),
                               );
                             },
                             child: Container(

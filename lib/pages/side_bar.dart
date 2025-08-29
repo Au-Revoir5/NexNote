@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'favorites.dart';
 
 class SideBar extends StatelessWidget {
   final Function(int)? onNavigate;
@@ -86,7 +87,10 @@ class SideBar extends StatelessWidget {
           ListTile(
             onTap: () {
               Navigator.pop(context); // Close drawer
-              onNavigate?.call(1); // Navigate to Search tab (index 1) - or create a favorites page
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => FavoritesPage()),
+              );
             },
             leading: Icon(Icons.star, color: Colors.white),
             title: Text("My Favorites", style: TextStyle(color: Colors.white, fontSize: 16)),
