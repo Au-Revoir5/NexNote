@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'favorites.dart';
+import 'settings.dart';
 import 'login.dart';
 
 class SideBar extends StatelessWidget {
@@ -100,7 +101,10 @@ class SideBar extends StatelessWidget {
             onTap: () {
               Navigator.pop(context); // Close drawer
               // Navigate to settings page or show settings dialog
-              _showSettingsDialog(context);
+             Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => SettingsScreen()),
+              );
             },
             leading: Icon(Icons.settings, color: Colors.white),
             title: Text("Settings", style: TextStyle(color: Colors.white, fontSize: 16)),

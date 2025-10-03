@@ -86,7 +86,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
                 ),
                 IconButton(
                   icon: Icon(
-                    isGridView ? Icons.list : Icons.grid_view, 
+                    isGridView ? Icons.list : Icons.list, 
                     color: Colors.white70
                   ),
                   onPressed: () {
