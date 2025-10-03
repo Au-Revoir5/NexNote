@@ -179,7 +179,7 @@ class FolderItem extends StatelessWidget {
   final String name;
   final Color color;
 
-  const FolderItem({required this.name, required this.color, Key? key}) : super(key: key);
+  const FolderItem({required this.name, required this.color, super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -233,7 +233,7 @@ class NoteItem extends StatelessWidget {
   final String title;
   final String subtitle;
 
-  const NoteItem({required this.title, required this.subtitle, Key? key}) : super(key: key);
+  const NoteItem({required this.title, required this.subtitle, super.key});
 
   @override
   Widget build(BuildContext context) {

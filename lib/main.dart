@@ -1,17 +1,21 @@
 import 'package:flutter/material.dart';
-import 'pages/bottom_bar.dart';
+import 'pages/landing.dart';
 void main() {
   runApp(MyApp());
 }
 
 class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      debugShowCheckedModeBanner: false,
       title: 'My Notes',
       theme: ThemeData.dark().copyWith(
         scaffoldBackgroundColor: Color(0xFF1C1C1E),
         primaryColor: Color(0xFF6366F1),
+        
         appBarTheme: AppBarTheme(
           backgroundColor: Color(0xFF1C1C1E),
           elevation: 0,
@@ -22,7 +26,7 @@ class MyApp extends StatelessWidget {
           ),
         ),
       ),
-      home: const BottomBar(),
+      home: const LandingPage(),
     );
   }
 }

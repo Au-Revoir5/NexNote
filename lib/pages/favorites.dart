@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 class FavoritesPage extends StatefulWidget {
+  const FavoritesPage({super.key});
+
   @override
   _FavoritesPageState createState() => _FavoritesPageState();
 }
@@ -249,11 +251,11 @@ class FavoriteGridItemWidget extends StatelessWidget {
   final VoidCallback onMenuTap;
 
   const FavoriteGridItemWidget({
-    Key? key,
+    super.key,
     required this.item,
     required this.onTap,
     required this.onMenuTap,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -431,11 +433,11 @@ class FavoriteItemWidget extends StatelessWidget {
   final VoidCallback onMenuTap;
 
   const FavoriteItemWidget({
-    Key? key,
+    super.key,
     required this.item,
     required this.onTap,
     required this.onMenuTap,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

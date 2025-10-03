@@ -6,7 +6,7 @@ const kCardColor = Color(0xFF2C2C2E);
 const kAccentYellow = Color(0xFFFBBF24);
 
 class SearchPage extends StatefulWidget {
-  const SearchPage({Key? key}) : super(key: key);
+  const SearchPage({super.key});
 
   @override
   State<SearchPage> createState() => _SearchPageState();
@@ -204,7 +204,7 @@ class NoteItem {
 class NoteCard extends StatelessWidget {
   final NoteItem note;
 
-  const NoteCard({Key? key, required this.note}) : super(key: key);
+  const NoteCard({super.key, required this.note});
 
   @override
   Widget build(BuildContext context) {

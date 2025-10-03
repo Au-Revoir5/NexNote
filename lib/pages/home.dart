@@ -7,6 +7,8 @@ const kCardColor = Color(0xFF2C2C2E);
 const kAccentYellow = Color(0xFFFBBF24);
 
 class HomePage extends StatefulWidget {
+  const HomePage({super.key});
+
   @override
   _HomePageState createState() => _HomePageState();
 }
@@ -241,7 +243,7 @@ class ActionButton extends StatelessWidget {
   final Color textColor;
   final Color? borderColor;
 
-  const ActionButton({
+  const ActionButton({super.key, 
     required this.icon,
     required this.label,
     required this.backgroundColor,

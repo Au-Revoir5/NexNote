@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'favorites.dart';
+import 'login.dart';
 
 class SideBar extends StatelessWidget {
   final Function(int)? onNavigate;
@@ -145,13 +146,16 @@ class SideBar extends StatelessWidget {
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: Text("Cancel", style: TextStyle(color: Colors.white70)),
+            
           ),
           TextButton(
             onPressed: () {
               Navigator.pop(context);
               // Add your logout logic here
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text("Logged out successfully!")),
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(builder: (context) => LoginPage()),
+                (route) => false,
               );
             },
             child: Text("Log Out", style: TextStyle(color: Colors.red)),
