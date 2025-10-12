@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'side_bar.dart';
-import 'home.dart';
-import 'notes.dart';
-import 'search.dart';
+import '../main/home.dart';
+import '../main/notes.dart';
+import '../main/search.dart';
 
 // Constants for reuse
 const kPrimaryColor = Color(0xFF6366F1);
@@ -37,40 +37,80 @@ class _BottomBarState extends State<BottomBar> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      // ✅ Prevent background flicker by explicitly setting same color everywhere
+      backgroundColor: kDarkSurface,
+      drawerScrimColor: Colors.transparent,
+      extendBodyBehindAppBar: false,
+
       appBar: AppBar(
         title: Text(_getPageTitle()),
         backgroundColor: kDarkSurface,
         elevation: 0,
-        titleTextStyle: TextStyle(
+        // ✅ Prevent dynamic tinting flicker (especially Android 12+)
+        surfaceTintColor: Colors.transparent,
+        shadowColor: Colors.transparent,
+        titleTextStyle: const TextStyle(
           color: Colors.white,
           fontSize: 20,
           fontWeight: FontWeight.w600,
         ),
-        iconTheme: IconThemeData(color: Colors.white),
-      ),
-      drawer: SideBar(onNavigate: _onTabTapped), // Pass the navigation callback
-      body: AnimatedSwitcher(
-      duration: const Duration(milliseconds: 300),
-      transitionBuilder: (Widget child, Animation<double> animation) {
-        return SlideTransition(
-          position: animation.drive(
-            Tween(begin: const Offset(0.1, 0), end: Offset.zero)
-              .chain(CurveTween(curve: Curves.easeOut)),
+        iconTheme: const IconThemeData(color: Colors.white),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 16.0),
+            child: GestureDetector(
+              onTap: () {
+                Scaffold.of(context).openDrawer();
+              },
+              child: CircleAvatar(
+                radius: 18,
+                backgroundColor: Colors.white,
+                child: const Text(
+                  "PFP",
+                  style: TextStyle(
+                    color: Colors.black,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
           ),
-          child: child,
-        );
-      },
-      child: Container(
-        key: ValueKey<int>(_currentIndex),
-        child: _pages[_currentIndex],
+        ],
       ),
-    ),
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: kPrimaryColor,
-        onPressed: () => _onTabTapped(2),
-        child: const Icon(Icons.add, color: Colors.white),
+
+      drawer: SideBar(onNavigate: _onTabTapped),
+
+      body: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 300),
+        transitionBuilder: (Widget child, Animation<double> animation) {
+          return SlideTransition(
+            position: animation.drive(
+              Tween(begin: const Offset(0.1, 0), end: Offset.zero)
+                  .chain(CurveTween(curve: Curves.easeOut)),
+            ),
+            child: child,
+          );
+        },
+        child: Container(
+          key: ValueKey<int>(_currentIndex),
+          color: kDarkSurface, // ✅ Keep background stable here too
+          child: _pages[_currentIndex],
+        ),
+      ),
+
+      floatingActionButton: Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom,
+        ),
+        child: FloatingActionButton(
+          backgroundColor: kPrimaryColor,
+          onPressed: () => _onTabTapped(2),
+          child: const Icon(Icons.add, color: Colors.white),
+        ),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+
       bottomNavigationBar: Padding(
         padding: const EdgeInsets.only(bottom: 12),
         child: Container(
@@ -93,8 +133,10 @@ class _BottomBarState extends State<BottomBar> {
 
   String _getPageTitle() {
     switch (_currentIndex) {
-      case 4: return 'My Notes';
-      default: return '';
+      case 4:
+        return 'My Notes';
+      default:
+        return '';
     }
   }
 

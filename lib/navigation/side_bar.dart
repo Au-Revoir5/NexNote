@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'favorites.dart';
-import 'settings.dart';
-import 'login.dart';
+import '../side/favorites.dart';
+import '../side/settings.dart';
+import '../landing/landing.dart';
 
 class SideBar extends StatelessWidget {
   final Function(int)? onNavigate;
@@ -122,23 +122,6 @@ class SideBar extends StatelessWidget {
     );
   }
 
-  void _showSettingsDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: Color(0xFF2C2C2E),
-        title: Text("Settings", style: TextStyle(color: Colors.white)),
-        content: Text("Settings page coming soon!", style: TextStyle(color: Colors.white70)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text("OK", style: TextStyle(color: Color(0xFF6366F1))),
-          ),
-        ],
-      ),
-    );
-  }
-
   void _showLogoutDialog(BuildContext context) {
     showDialog(
       context: context,
@@ -158,7 +141,7 @@ class SideBar extends StatelessWidget {
               // Add your logout logic here
               Navigator.pushAndRemoveUntil(
                 context,
-                MaterialPageRoute(builder: (context) => LoginPage()),
+                MaterialPageRoute(builder: (context) => LandingPage()),
                 (route) => false,
               );
             },

@@ -8,7 +8,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:nexnote/pages/notes.dart';
+import 'package:nexnote/main/notes.dart';
 
 void main() {
   testWidgets('Counter increments smoke test', (WidgetTester tester) async {

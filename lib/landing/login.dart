@@ -1,9 +1,60 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'login.dart';
+import '../navigation/bottom_bar.dart';
+import 'signup.dart';
 
-class SignUpPage extends StatelessWidget {
-  const SignUpPage({super.key});
+class LoginPage extends StatefulWidget {
+  const LoginPage({super.key});
+
+  @override
+  State<LoginPage> createState() => _LoginPageState();
+}
+
+class _LoginPageState extends State<LoginPage> {
+  final TextEditingController _usernameController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+
+  bool _isLoading = false;
+  String? _errorMessage;
+
+  @override
+  void dispose() {
+    _usernameController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleLogin() async {
+    final username = _usernameController.text.trim();
+    final password = _passwordController.text.trim();
+
+    if (username.isEmpty || password.isEmpty) {
+      setState(() => _errorMessage = "Please fill all fields");
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    // Simulate API call
+    await Future.delayed(const Duration(seconds: 2));
+
+    if (username == 'admin' && password == '1234') {
+      // Success → navigate
+      if (!mounted) return;
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const BottomBar()),
+      );
+    } else {
+      // Invalid credentials
+      setState(() => _errorMessage = "Invalid username or password");
+    }
+
+    setState(() => _isLoading = false);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -30,7 +81,7 @@ class SignUpPage extends StatelessWidget {
                 children: [
                   const SizedBox(height: 50),
                   const Text(
-                    'Welcome to NexNote!',
+                    'Welcome back!',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 28,
@@ -40,16 +91,7 @@ class SignUpPage extends StatelessWidget {
                   ),
                   const SizedBox(height: 20),
                   const Text(
-                    'Create an account',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black,
-                    ),
-                  ),
-                  const Text(
-                    'Enter your details to sign up for this app',
+                    'Login to your account',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 16,
@@ -58,6 +100,7 @@ class SignUpPage extends StatelessWidget {
                   ),
                   const SizedBox(height: 40),
                   TextFormField(
+                    controller: _usernameController,
                     decoration: InputDecoration(
                       hintText: 'Username',
                       filled: true,
@@ -70,18 +113,7 @@ class SignUpPage extends StatelessWidget {
                   ),
                   const SizedBox(height: 20),
                   TextFormField(
-                    decoration: InputDecoration(
-                      hintText: 'Email address',
-                      filled: true,
-                      fillColor: Colors.grey[200],
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide.none,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  TextFormField(
+                    controller: _passwordController,
                     obscureText: true,
                     decoration: InputDecoration(
                       hintText: 'Password',
@@ -93,9 +125,20 @@ class SignUpPage extends StatelessWidget {
                       ),
                     ),
                   ),
+                  const SizedBox(height: 10),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: () {},
+                      child: const Text(
+                        'Forgot password?',
+                        style: TextStyle(color: Colors.black),
+                      ),
+                    ),
+                  ),
                   const SizedBox(height: 20),
                   ElevatedButton(
-                    onPressed: () {},
+                    onPressed: _isLoading ? null : _handleLogin,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.black,
                       padding: const EdgeInsets.symmetric(vertical: 16),
@@ -103,11 +146,32 @@ class SignUpPage extends StatelessWidget {
                         borderRadius: BorderRadius.circular(8),
                       ),
                     ),
-                    child: const Text(
-                      'Sign Up',
-                      style: TextStyle(fontSize: 16, color: Colors.white),
-                    ),
+                    child: _isLoading
+                        ? const SizedBox(
+                            height: 22,
+                            width: 22,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2.5,
+                            ),
+                          )
+                        : const Text(
+                            'Login',
+                            style:
+                                TextStyle(fontSize: 16, color: Colors.white),
+                          ),
                   ),
+
+                  // Error message
+                  if (_errorMessage != null) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      _errorMessage!,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: Colors.red),
+                    ),
+                  ],
+
                   const SizedBox(height: 20),
                   Row(
                     children: [
@@ -127,7 +191,7 @@ class SignUpPage extends StatelessWidget {
                     onPressed: () {},
                     icon: const Icon(Icons.login, color: Colors.red),
                     label: const Text(
-                      'Continue with Google',
+                      'Login with Google',
                       style: TextStyle(color: Colors.black),
                     ),
                     style: OutlinedButton.styleFrom(
@@ -143,7 +207,7 @@ class SignUpPage extends StatelessWidget {
                     onPressed: () {},
                     icon: const Icon(Icons.apple, color: Colors.black),
                     label: const Text(
-                      'Continue with Apple',
+                      'Login with Apple',
                       style: TextStyle(color: Colors.black),
                     ),
                     style: OutlinedButton.styleFrom(
@@ -154,28 +218,25 @@ class SignUpPage extends StatelessWidget {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 20),
-                  Text.rich(
-                    TextSpan(
-                      text: 'By clicking continue, you agree to our ',
-                      style: const TextStyle(color: Colors.grey),
-                      children: [
-                        TextSpan(
-                          text: 'Terms of Service',
-                          style: TextStyle(
-                              color: Colors.purple[300],
-                              decoration: TextDecoration.underline),
+                  const SizedBox(height: 40),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Text('Don\'t have an account?'),
+                      TextButton(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (context) => const SignUpPage()),
+                          );
+                        },
+                        child: const Text(
+                          'Sign Up',
+                          style: TextStyle(color: Colors.purple),
                         ),
-                        const TextSpan(text: ' and '),
-                        TextSpan(
-                          text: 'Privacy Policy',
-                          style: TextStyle(
-                              color: Colors.purple[300],
-                              decoration: TextDecoration.underline),
-                        ),
-                      ],
-                    ),
-                    textAlign: TextAlign.center,
+                      ),
+                    ],
                   ),
                 ],
               ),

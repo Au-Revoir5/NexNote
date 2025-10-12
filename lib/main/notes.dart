@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'favorites.dart';
+import '../side/favorites.dart';
 
 const kPrimaryColor = Color(0xFF6366F1);
 const kDarkSurface = Color(0xFF1C1C1E);

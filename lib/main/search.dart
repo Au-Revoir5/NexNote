@@ -14,7 +14,9 @@ class SearchPage extends StatefulWidget {
 
 class _SearchPageState extends State<SearchPage> {
   final TextEditingController _searchController = TextEditingController();
-  
+
+  String sortBy = "Last Edited (Recent)";
+
   final List<NoteItem> notes = [
     NoteItem(
       title: 'Placeholder Subject A',
@@ -54,13 +56,82 @@ class _SearchPageState extends State<SearchPage> {
     ),
   ];
 
+  // --- Sort Logic ---
+  void _sortNotes() {
+    setState(() {
+      if (sortBy == "A–Z") {
+        notes.sort((a, b) => a.title.compareTo(b.title));
+      } else if (sortBy == "Z–A") {
+        notes.sort((a, b) => b.title.compareTo(a.title));
+      } else if (sortBy == "Last Edited (Old)") {
+        notes.shuffle(); // placeholder behavior
+      } else {
+        notes.shuffle(); // placeholder for "Recent"
+      }
+    });
+  }
+
+  // --- Show Sort Sheet ---
+  void _showSortOptions() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF2C2C2E),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _sortOption("Last Edited (Recent)"),
+              _sortOption("Last Edited (Old)"),
+              _sortOption("A–Z"),
+              _sortOption("Z–A"),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // --- Sort Option Widget ---
+  Widget _sortOption(String label) {
+    final isSelected = sortBy == label;
+
+    return ListTile(
+      title: Text(
+        label,
+        style: TextStyle(
+          color: isSelected ? kPrimaryColor : Colors.white,
+          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+        ),
+      ),
+      trailing: isSelected
+          ? const Icon(
+              Icons.check,
+              color: kPrimaryColor,
+            )
+          : null,
+      onTap: () {
+        setState(() {
+          sortBy = label;
+          _sortNotes();
+        });
+        Navigator.pop(context); // close sheet
+      },
+    );
+  }
+
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: kDarkSurface,
       body: SafeArea(
         child: Column(
           children: [
-            // Scrollable Area
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.only(bottom: 16),
@@ -116,9 +187,20 @@ class _SearchPageState extends State<SearchPage> {
                               ),
                               child: TextField(
                                 controller: _searchController,
+                                onChanged: (value) {
+                                  setState(() {});
+                                },
+                                style: TextStyle(
+                                  color: _searchController.text.isEmpty
+                                      ? Colors.black.withOpacity(0.5)
+                                      : Colors.black,
+                                  fontSize: 16,
+                                ),
                                 decoration: const InputDecoration(
                                   hintText: 'Search',
-                                  prefixIcon: Icon(Icons.search, color: Colors.grey),
+                                  hintStyle: TextStyle(color: Colors.grey),
+                                  prefixIcon:
+                                      Icon(Icons.search, color: Colors.grey),
                                   border: InputBorder.none,
                                   contentPadding: EdgeInsets.symmetric(
                                     horizontal: 20,
@@ -147,7 +229,7 @@ class _SearchPageState extends State<SearchPage> {
                               borderRadius: BorderRadius.circular(25),
                             ),
                             child: IconButton(
-                              onPressed: () {},
+                              onPressed: _showSortOptions,
                               icon: const Icon(Icons.sort, color: Colors.grey),
                               padding: const EdgeInsets.all(12),
                             ),
@@ -165,7 +247,8 @@ class _SearchPageState extends State<SearchPage> {
                         shrinkWrap: true,
                         physics: const NeverScrollableScrollPhysics(),
                         itemCount: notes.length,
-                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: 2,
                           crossAxisSpacing: 12,
                           mainAxisSpacing: 12,
@@ -187,6 +270,7 @@ class _SearchPageState extends State<SearchPage> {
   }
 }
 
+// --- Note Data Model ---
 class NoteItem {
   final String title;
   final String author;
@@ -201,6 +285,7 @@ class NoteItem {
   });
 }
 
+// --- Note Card Widget ---
 class NoteCard extends StatelessWidget {
   final NoteItem note;
 
@@ -222,33 +307,26 @@ class NoteCard extends StatelessWidget {
       ),
       child: Stack(
         children: [
-          // Placeholder content to simulate handwritten notes
           Padding(
             padding: const EdgeInsets.all(12.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Simulated handwritten lines
                 Container(
-                  width: double.infinity,
-                  height: 2,
-                  color: Colors.black26,
-                  margin: const EdgeInsets.only(bottom: 8),
-                ),
+                    width: double.infinity,
+                    height: 2,
+                    color: Colors.black26,
+                    margin: const EdgeInsets.only(bottom: 8)),
                 Container(
-                  width: 120,
-                  height: 2,
-                  color: Colors.black26,
-                  margin: const EdgeInsets.only(bottom: 8),
-                ),
+                    width: 120,
+                    height: 2,
+                    color: Colors.black26,
+                    margin: const EdgeInsets.only(bottom: 8)),
                 Container(
-                  width: 100,
-                  height: 2,
-                  color: Colors.black26,
-                  margin: const EdgeInsets.only(bottom: 12),
-                ),
-                
-                // Placeholder diagrams/shapes
+                    width: 100,
+                    height: 2,
+                    color: Colors.black26,
+                    margin: const EdgeInsets.only(bottom: 12)),
                 Container(
                   width: 60,
                   height: 60,
@@ -259,33 +337,20 @@ class NoteCard extends StatelessWidget {
                   child: const Center(
                     child: Text(
                       'IMG',
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: Colors.black54,
-                      ),
+                      style: TextStyle(fontSize: 10, color: Colors.black54),
                     ),
                   ),
                 ),
-                
                 const Spacer(),
-                
-                // More placeholder lines
                 Container(
-                  width: double.infinity,
-                  height: 2,
-                  color: Colors.black26,
-                  margin: const EdgeInsets.only(bottom: 4),
-                ),
-                Container(
-                  width: 80,
-                  height: 2,
-                  color: Colors.black26,
-                ),
+                    width: double.infinity,
+                    height: 2,
+                    color: Colors.black26,
+                    margin: const EdgeInsets.only(bottom: 4)),
+                Container(width: 80, height: 2, color: Colors.black26),
               ],
             ),
           ),
-          
-          // Title and author at bottom
           Positioned(
             bottom: 0,
             left: 0,
@@ -327,8 +392,6 @@ class NoteCard extends StatelessWidget {
               ),
             ),
           ),
-          
-          // More options button
           Positioned(
             top: 8,
             right: 8,
@@ -337,11 +400,8 @@ class NoteCard extends StatelessWidget {
                 color: const Color.fromARGB(127, 0, 0, 0),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: const Icon(
-                Icons.more_vert,
-                color: Colors.white,
-                size: 20,
-              ),
+              child: const Icon(Icons.more_vert,
+                  color: Colors.white, size: 20),
             ),
           ),
         ],
