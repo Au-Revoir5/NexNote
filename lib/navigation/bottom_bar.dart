@@ -36,17 +36,28 @@ class _BottomBarState extends State<BottomBar> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      // ✅ Prevent background flicker by explicitly setting same color everywhere
-      backgroundColor: kDarkSurface,
-      drawerScrimColor: Colors.transparent,
-      extendBodyBehindAppBar: false,
+    // Get screen dimensions without keyboard insets
+    final mediaQuery = MediaQuery.of(context);
+    final screenWidth = mediaQuery.size.width;
+    
+    return MediaQuery.removePadding(
+      context: context,
+      removeBottom: true,
+      child: MediaQuery(
+        data: mediaQuery.copyWith(
+          viewInsets: EdgeInsets.zero,
+          viewPadding: mediaQuery.viewPadding.copyWith(bottom: 0),
+        ),
+        child: Scaffold(
+          backgroundColor: kDarkSurface,
+          drawerScrimColor: Colors.transparent,
+          extendBodyBehindAppBar: false,
+          resizeToAvoidBottomInset: false,
 
-      appBar: AppBar(
+          appBar: AppBar(
         title: Text(_getPageTitle()),
         backgroundColor: kDarkSurface,
         elevation: 0,
-        // ✅ Prevent dynamic tinting flicker (especially Android 12+)
         surfaceTintColor: Colors.transparent,
         shadowColor: Colors.transparent,
         titleTextStyle: const TextStyle(
@@ -81,51 +92,78 @@ class _BottomBarState extends State<BottomBar> {
 
       drawer: SideBar(onNavigate: _onTabTapped),
 
-      body: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 300),
-        transitionBuilder: (Widget child, Animation<double> animation) {
-          return SlideTransition(
-            position: animation.drive(
-              Tween(begin: const Offset(0.1, 0), end: Offset.zero)
-                  .chain(CurveTween(curve: Curves.easeOut)),
+      body: Stack(
+        children: [
+          // Main content with bottom padding
+          Positioned.fill(
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 36),
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 300),
+                transitionBuilder: (Widget child, Animation<double> animation) {
+                  return SlideTransition(
+                    position: animation.drive(
+                      Tween(begin: const Offset(0.1, 0), end: Offset.zero)
+                          .chain(CurveTween(curve: Curves.easeOut)),
+                    ),
+                    child: child,
+                  );
+                },
+                child: Container(
+                  key: ValueKey<int>(_currentIndex),
+                  color: kDarkSurface,
+                  child: _pages[_currentIndex],
+                ),
+              ),
             ),
-            child: child,
-          );
-        },
-        child: Container(
-          key: ValueKey<int>(_currentIndex),
-          color: kDarkSurface, // ✅ Keep background stable here too
-          child: _pages[_currentIndex],
-        ),
-      ),
-
-      floatingActionButton: Padding(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewInsets.bottom,
-        ),
-        child: FloatingActionButton(
-          backgroundColor: kPrimaryColor,
-          onPressed: () => _onTabTapped(2),
-          child: const Icon(Icons.add, color: Colors.white),
-        ),
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-
-      bottomNavigationBar: Padding(
-        padding: const EdgeInsets.only(bottom: 12),
-        child: Container(
-          height: 60,
-          color: kDarkSurface,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: <Widget>[
-              _buildTabItem(icon: Icons.home, index: 0, label: 'Home'),
-              _buildTabItem(icon: Icons.search, index: 1, label: 'Search'),
-              _buildCenterLabel(index: 2, label: 'Add'),
-              _buildTabItem(icon: Icons.build, index: 3, label: 'Tools'),
-              _buildTabItem(icon: Icons.note, index: 4, label: 'Notes'),
-            ],
           ),
+          
+          // Fixed Bottom Navigation Bar with absolute positioning
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            height: 72,
+            child: IgnorePointer(
+              ignoring: false,
+              child: Container(
+                color: kDarkSurface,
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Container(
+                    height: 60,
+                    color: kDarkSurface,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: <Widget>[
+                        _buildTabItem(icon: Icons.home, index: 0, label: 'Home'),
+                        _buildTabItem(icon: Icons.search, index: 1, label: 'Search'),
+                        _buildCenterLabel(index: 2, label: 'Add'),
+                        _buildTabItem(icon: Icons.build, index: 3, label: 'Tools'),
+                        _buildTabItem(icon: Icons.note, index: 4, label: 'Notes'),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          
+          // Fixed Floating Action Button with absolute positioning
+          Positioned(
+            left: screenWidth / 2 - 28,
+            bottom: 48,
+            child: IgnorePointer(
+              ignoring: false,
+              child: FloatingActionButton(
+                backgroundColor: kPrimaryColor,
+                onPressed: () => _onTabTapped(2),
+                child: const Icon(Icons.add, color: Colors.white),
+              ),
+            ),
+          ),
+        ],
+      ),
         ),
       ),
     );

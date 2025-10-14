@@ -19,7 +19,13 @@ class _FavoritesPageState extends State<FavoritesPage> {
 
   @override
   Widget build(BuildContext context) {
-    // Apply sorting logic before building UI
+    final width = MediaQuery.of(context).size.width;
+
+    // Adjust based on screen width (phones only)
+    final textScale = width < 360 ? 0.9 : 1.0;
+    final iconSize = width < 360 ? 20.0 : 24.0;
+    final padding = width < 360 ? 12.0 : 16.0;
+
     List<FavoriteItem> sortedItems = List.from(favoriteItems);
     _sortItems(sortedItems);
 
@@ -29,29 +35,29 @@ class _FavoritesPageState extends State<FavoritesPage> {
         backgroundColor: const Color(0xFF1C1C1E),
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          icon: Icon(Icons.arrow_back, color: Colors.white, size: iconSize),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
+        title: Text(
           "My Favorite",
           style: TextStyle(
             color: Colors.white,
-            fontSize: 18,
+            fontSize: 18 * textScale,
             fontWeight: FontWeight.w600,
           ),
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.search, color: Colors.white),
+            icon: Icon(Icons.search, color: Colors.white, size: iconSize),
             onPressed: () {},
           ),
         ],
       ),
       body: Column(
         children: [
-          // Sort + View toggle row
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            padding:
+                EdgeInsets.symmetric(horizontal: padding, vertical: padding / 2),
             child: Row(
               children: [
                 Expanded(
@@ -59,11 +65,14 @@ class _FavoritesPageState extends State<FavoritesPage> {
                     onTap: _showSortOptions,
                     child: Row(
                       children: [
-                        Text(
-                          sortBy,
-                          style: const TextStyle(
-                            color: Colors.white70,
-                            fontSize: 16,
+                        Flexible(
+                          child: Text(
+                            sortBy,
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 16 * textScale,
+                            ),
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                         const Icon(Icons.keyboard_arrow_down,
@@ -76,6 +85,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
                   icon: Icon(
                     isGridView ? Icons.grid_view : Icons.list,
                     color: Colors.white70,
+                    size: iconSize,
                   ),
                   onPressed: () {
                     setState(() {
@@ -86,19 +96,16 @@ class _FavoritesPageState extends State<FavoritesPage> {
               ],
             ),
           ),
-
-          // Content
           Expanded(
             child: isGridView
-                ? _buildGridView(sortedItems)
-                : _buildListView(sortedItems),
+                ? _buildGridView(sortedItems, width)
+                : _buildListView(sortedItems, textScale, iconSize),
           ),
         ],
       ),
     );
   }
 
-  /// Sorting options bottom sheet
   void _showSortOptions() {
     showModalBottomSheet(
       context: context,
@@ -107,22 +114,23 @@ class _FavoritesPageState extends State<FavoritesPage> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
       ),
       builder: (context) {
-        return Container(
-          padding: const EdgeInsets.symmetric(vertical: 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _sortOption("Last Edited (Recent)"),
-              _sortOption("Last Edited (Oldest)"),
-              _sortOption("Alphabetical"),
-            ],
+        return SafeArea(
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _sortOption("Last Edited (Recent)"),
+                _sortOption("Last Edited (Oldest)"),
+                _sortOption("Alphabetical"),
+              ],
+            ),
           ),
         );
       },
     );
   }
 
-  /// Apply sorting logic based on `sortBy`
   void _sortItems(List<FavoriteItem> items) {
     switch (sortBy) {
       case "Last Edited (Recent)":
@@ -139,13 +147,11 @@ class _FavoritesPageState extends State<FavoritesPage> {
     }
   }
 
-  /// Extracts numeric value from “X days ago”
   int _extractDays(String text) {
     final match = RegExp(r'(\d+)').firstMatch(text);
     return match != null ? int.parse(match.group(1)!) : 0;
   }
 
-  /// Sort option tile
   Widget _sortOption(String option) {
     return ListTile(
       title: Text(option,
@@ -162,43 +168,44 @@ class _FavoritesPageState extends State<FavoritesPage> {
     );
   }
 
-  /// Grid view
-  Widget _buildGridView(List<FavoriteItem> items) {
+  Widget _buildGridView(List<FavoriteItem> items, double width) {
     return GridView.builder(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(12),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: 16,
-        mainAxisSpacing: 16,
-        childAspectRatio: 1.1,
+        crossAxisCount: 2, 
+        crossAxisSpacing: 10,
+        mainAxisSpacing: 10,
+        childAspectRatio: 1.1, 
       ),
       itemCount: items.length,
       itemBuilder: (context, index) {
         return FavoriteGridItemWidget(
           item: items[index],
-          onTap: () => print("Tapped on ${items[index].title}"),
+          onTap: () => print("Tapped ${items[index].title}"),
           onMenuTap: () => _showItemMenu(items[index]),
         );
       },
     );
   }
 
-  /// List view
-  Widget _buildListView(List<FavoriteItem> items) {
+
+  Widget _buildListView(
+      List<FavoriteItem> items, double textScale, double iconSize) {
     return ListView.builder(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       itemCount: items.length,
       itemBuilder: (context, index) {
         return FavoriteItemWidget(
           item: items[index],
-          onTap: () => print("Tapped on ${items[index].title}"),
+          onTap: () => print("Tapped ${items[index].title}"),
           onMenuTap: () => _showItemMenu(items[index]),
+          textScale: textScale,
+          iconSize: iconSize,
         );
       },
     );
   }
 
-  /// Item menu
   void _showItemMenu(FavoriteItem item) {
     showModalBottomSheet(
       context: context,
@@ -207,37 +214,39 @@ class _FavoritesPageState extends State<FavoritesPage> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
       ),
       builder: (context) {
-        return Container(
-          padding: const EdgeInsets.symmetric(vertical: 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: const Icon(Icons.edit, color: Colors.white),
-                title:
-                    const Text("Edit", style: TextStyle(color: Colors.white)),
-                onTap: () => Navigator.pop(context),
-              ),
-              ListTile(
-                leading: const Icon(Icons.share, color: Colors.white),
-                title:
-                    const Text("Share", style: TextStyle(color: Colors.white)),
-                onTap: () => Navigator.pop(context),
-              ),
-              ListTile(
-                leading:
-                    const Icon(Icons.favorite_border, color: Colors.white),
-                title: const Text("Remove from Favorites",
-                    style: TextStyle(color: Colors.white)),
-                onTap: () => Navigator.pop(context),
-              ),
-              ListTile(
-                leading: const Icon(Icons.delete, color: Colors.red),
-                title:
-                    const Text("Delete", style: TextStyle(color: Colors.red)),
-                onTap: () => Navigator.pop(context),
-              ),
-            ],
+        return SafeArea(
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.edit, color: Colors.white),
+                  title:
+                      const Text("Edit", style: TextStyle(color: Colors.white)),
+                  onTap: () => Navigator.pop(context),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.share, color: Colors.white),
+                  title: const Text("Share",
+                      style: TextStyle(color: Colors.white)),
+                  onTap: () => Navigator.pop(context),
+                ),
+                ListTile(
+                  leading:
+                      const Icon(Icons.favorite_border, color: Colors.white),
+                  title: const Text("Remove from Favorites",
+                      style: TextStyle(color: Colors.white)),
+                  onTap: () => Navigator.pop(context),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.delete, color: Colors.red),
+                  title:
+                      const Text("Delete", style: TextStyle(color: Colors.red)),
+                  onTap: () => Navigator.pop(context),
+                ),
+              ],
+            ),
           ),
         );
       },
@@ -253,10 +262,7 @@ class FavoriteItem {
   final String title;
   final String lastEdited;
 
-  FavoriteItem({
-    required this.title,
-    required this.lastEdited,
-  });
+  FavoriteItem({required this.title, required this.lastEdited});
 }
 
 class FavoriteGridItemWidget extends StatelessWidget {
@@ -300,7 +306,7 @@ class FavoriteGridItemWidget extends StatelessWidget {
                       const BorderRadius.vertical(top: Radius.circular(12)),
                 ),
                 child: Center(
-                  child: Icon(_getIcon(), color: _getColor(), size: 40),
+                  child: Icon(_getIcon(), color: _getColor(), size: 36),
                 ),
               ),
             ),
@@ -318,8 +324,8 @@ class FavoriteGridItemWidget extends StatelessWidget {
                           color: _getColor(),
                           borderRadius: BorderRadius.circular(4),
                         ),
-                        child:
-                            const Icon(Icons.bookmark, color: Colors.white, size: 12),
+                        child: const Icon(Icons.bookmark,
+                            color: Colors.white, size: 12),
                       ),
                       const SizedBox(width: 8),
                       Expanded(
@@ -387,12 +393,16 @@ class FavoriteItemWidget extends StatelessWidget {
   final FavoriteItem item;
   final VoidCallback onTap;
   final VoidCallback onMenuTap;
+  final double textScale;
+  final double iconSize;
 
   const FavoriteItemWidget({
     super.key,
     required this.item,
     required this.onTap,
     required this.onMenuTap,
+    required this.textScale,
+    required this.iconSize,
   });
 
   @override
@@ -417,7 +427,7 @@ class FavoriteItemWidget extends StatelessWidget {
                     width: 1,
                   ),
                 ),
-                child: Icon(_getIcon(), color: _getColor(), size: 28),
+                child: Icon(_getIcon(), color: _getColor(), size: iconSize + 4),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -426,9 +436,9 @@ class FavoriteItemWidget extends StatelessWidget {
                   children: [
                     Text(
                       item.title,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: Colors.white,
-                        fontSize: 16,
+                        fontSize: 16 * textScale,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
@@ -437,14 +447,15 @@ class FavoriteItemWidget extends StatelessWidget {
                       "Last edited ${item.lastEdited}",
                       style: TextStyle(
                         color: Colors.grey[400],
-                        fontSize: 14,
+                        fontSize: 13 * textScale,
                       ),
                     ),
                   ],
                 ),
               ),
               IconButton(
-                icon: Icon(Icons.more_vert, color: Colors.grey[400]),
+                icon: Icon(Icons.more_vert,
+                    color: Colors.grey[400], size: iconSize),
                 onPressed: onMenuTap,
               ),
             ],

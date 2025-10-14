@@ -138,11 +138,10 @@ class SideBar extends StatelessWidget {
           TextButton(
             onPressed: () {
               Navigator.pop(context);
-              // Add your logout logic here
               Navigator.pushAndRemoveUntil(
                 context,
                 MaterialPageRoute(builder: (context) => LandingPage()),
-                (route) => false,
+                (Route<dynamic> route) => false // Remove all previous routes
               );
             },
             child: Text("Log Out", style: TextStyle(color: Colors.red)),

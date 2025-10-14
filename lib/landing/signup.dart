@@ -95,14 +95,14 @@ class SignUpPage extends StatelessWidget {
                   ),
                   const SizedBox(height: 20),
 
-                  // ✅ Updated Sign Up button
                   ElevatedButton(
                     onPressed: () {
-                      Navigator.pushReplacement(
+                      Navigator.pushAndRemoveUntil(
                         context,
                         MaterialPageRoute(
                           builder: (context) => const BottomBar(),
                         ),
+                        (Route<dynamic> route) => false, // remove all previous routes
                       );
                     },
                     style: ElevatedButton.styleFrom(

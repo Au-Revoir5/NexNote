@@ -42,11 +42,13 @@ class _LoginPageState extends State<LoginPage> {
     await Future.delayed(const Duration(seconds: 2));
 
     if (username == 'admin' && password == '1234') {
-      // Success → navigate
       if (!mounted) return;
-      Navigator.pushReplacement(
+      Navigator.pushAndRemoveUntil(
         context,
-        MaterialPageRoute(builder: (context) => const BottomBar()),
+        MaterialPageRoute(
+          builder: (context) => const BottomBar(),
+        ),
+        (Route<dynamic> route) => false, 
       );
     } else {
       // Invalid credentials
