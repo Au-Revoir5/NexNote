@@ -110,13 +110,40 @@ class _NotesPageState extends State<NotesPage> {
 
                     const SizedBox(height: 24),
 
-                    const Text(
-                      'Folder',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                      ),
+                    // Folder Header with See More
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Folder',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        GestureDetector(
+                          onTap: () {},
+                          child: Row(
+                            children: const [
+                              Text(
+                                'See more',
+                                style: TextStyle(
+                                  color: Colors.grey,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              SizedBox(width: 4),
+                              Icon(
+                                Icons.arrow_forward_ios,
+                                color: Colors.grey,
+                                size: 14,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
 
                     const SizedBox(height: 16),
@@ -138,14 +165,37 @@ class _NotesPageState extends State<NotesPage> {
 
                     const SizedBox(height: 24),
 
-                    const Row(
+                    // Recent Header with See More
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          'Last edited (Recent)',
+                        const Text(
+                          'Last edited',
                           style: TextStyle(
                             color: Colors.white,
                             fontSize: 18,
                             fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        GestureDetector(
+                          onTap: () {},
+                          child: Row(
+                            children: const [
+                              Text(
+                                'See more',
+                                style: TextStyle(
+                                  color: Colors.grey,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              SizedBox(width: 4),
+                              Icon(
+                                Icons.arrow_forward_ios,
+                                color: Colors.grey,
+                                size: 14,
+                              ),
+                            ],
                           ),
                         ),
                       ],
@@ -245,7 +295,49 @@ class NoteItem extends StatefulWidget {
 class _NoteItemState extends State<NoteItem>
     with SingleTickerProviderStateMixin {
   bool isFavorite = false;
-  bool _isPressed = false;
+  late AnimationController _animationController;
+  late Animation<double> _scaleAnimation;
+  late Animation<double> _burstAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      duration: const Duration(milliseconds: 400),
+      vsync: this,
+    );
+
+    _scaleAnimation = TweenSequence<double>([
+      TweenSequenceItem(
+        tween: Tween<double>(begin: 1.0, end: 0.0)
+            .chain(CurveTween(curve: Curves.easeInOut)),
+        weight: 25,
+      ),
+      TweenSequenceItem(
+        tween: Tween<double>(begin: 0.0, end: 1.3)
+            .chain(CurveTween(curve: Curves.easeOutBack)),
+        weight: 50,
+      ),
+      TweenSequenceItem(
+        tween: Tween<double>(begin: 1.3, end: 1.0)
+            .chain(CurveTween(curve: Curves.easeInOut)),
+        weight: 25,
+      ),
+    ]).animate(_animationController);
+
+    _burstAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _animationController,
+        curve: const Interval(0.2, 0.8, curve: Curves.easeOut),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
 
   void _showOptionsMenu(BuildContext context) {
     showModalBottomSheet(
@@ -333,42 +425,76 @@ class _NoteItemState extends State<NoteItem>
             ),
           ),
 
-          // Favorite star
+          // Favorite star with Instagram-like animation
           GestureDetector(
             onTap: () {
-              setState(() => isFavorite = !isFavorite);
+              setState(() {
+                isFavorite = !isFavorite;
+                if (isFavorite) {
+                  _animationController.forward(from: 0.0);
+                }
+              });
             },
-            child: Icon(
-              isFavorite ? Icons.star : Icons.star_border,
-              color: isFavorite ? kAccentYellow : Colors.grey,
-              size: 20,
+            child: SizedBox(
+              width: 40,
+              height: 40,
+              child: AnimatedBuilder(
+                animation: _animationController,
+                builder: (context, child) {
+                  return Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      // Burst effect
+                      if (isFavorite && _burstAnimation.value > 0)
+                        Transform.scale(
+                          scale: _burstAnimation.value,
+                          child: Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: kAccentYellow
+                                    .withOpacity(1 - _burstAnimation.value),
+                                width: 2,
+                              ),
+                            ),
+                          ),
+                        ),
+                      // Star icon
+                      Transform.scale(
+                        scale: isFavorite && _animationController.isAnimating
+                            ? _scaleAnimation.value
+                            : 1.0,
+                        child: Icon(
+                          isFavorite ? Icons.star : Icons.star_border,
+                          color: isFavorite ? kAccentYellow : Colors.grey,
+                          size: 22,
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
             ),
           ),
           const SizedBox(width: 8),
 
-          // Triple dots with light tap animation
-          GestureDetector(
-            onTapDown: (_) => setState(() => _isPressed = true),
-            onTapUp: (_) {
-              Future.delayed(const Duration(milliseconds: 80), () {
-                if (mounted) setState(() => _isPressed = false);
-                _showOptionsMenu(context);
-              });
-            },
-            onTapCancel: () => setState(() => _isPressed = false),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 100),
-              curve: Curves.easeOut,
-              padding: const EdgeInsets.all(4),
-              decoration: BoxDecoration(
-                color: _isPressed ? Colors.white10 : Colors.transparent,
-                shape: BoxShape.circle,
-              ),
-              child: AnimatedScale(
-                scale: _isPressed ? 0.85 : 1.0,
-                duration: const Duration(milliseconds: 100),
-                curve: Curves.easeOutBack,
-                child: const Icon(Icons.more_vert, color: Colors.grey, size: 22),
+          // Triple dots with press feedback
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(50),
+              splashColor: Colors.white24,
+              highlightColor: Colors.white10,
+              onTap: () => _showOptionsMenu(context),
+              child: const Padding(
+                padding: EdgeInsets.all(6),
+                child: Icon(
+                  Icons.more_vert,
+                  color: Colors.grey,
+                  size: 22,
+                ),
               ),
             ),
           ),
