@@ -37,7 +37,8 @@ class _NotesPageState extends State<NotesPage> {
                   hintStyle: TextStyle(color: Colors.grey),
                   prefixIcon: Icon(Icons.search, color: Colors.grey),
                   border: InputBorder.none,
-                  contentPadding: EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+                  contentPadding:
+                      EdgeInsets.symmetric(horizontal: 20, vertical: 15),
                 ),
                 style: const TextStyle(color: Colors.white),
               ),
@@ -56,18 +57,15 @@ class _NotesPageState extends State<NotesPage> {
                       children: [
                         Expanded(
                           child: GestureDetector(
-                            onTap: () {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Add Note Clicked')),
-                              );
-                            },
+                            onTap: () {},
                             child: Container(
                               height: 80,
                               decoration: BoxDecoration(
                                 color: kPrimaryColor,
                                 borderRadius: BorderRadius.circular(16),
                               ),
-                              child: const Icon(Icons.add, color: Colors.white, size: 32),
+                              child: const Icon(Icons.add,
+                                  color: Colors.white, size: 32),
                             ),
                           ),
                         ),
@@ -77,7 +75,8 @@ class _NotesPageState extends State<NotesPage> {
                             onTap: () {
                               Navigator.push(
                                 context,
-                                MaterialPageRoute(builder: (context) => FavoritesPage()),
+                                MaterialPageRoute(
+                                    builder: (context) => FavoritesPage()),
                               );
                             },
                             child: Container(
@@ -86,25 +85,23 @@ class _NotesPageState extends State<NotesPage> {
                                 color: kAccentYellow,
                                 borderRadius: BorderRadius.circular(16),
                               ),
-                              child: const Icon(Icons.star, color: Colors.white, size: 32),
+                              child: const Icon(Icons.star,
+                                  color: Colors.white, size: 32),
                             ),
                           ),
                         ),
                         const SizedBox(width: 16),
                         Expanded(
                           child: GestureDetector(
-                            onTap: () {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Deleted Notes Clicked')),
-                              );
-                            },
+                            onTap: () {},
                             child: Container(
                               height: 80,
                               decoration: BoxDecoration(
                                 color: Color(0xFF4B5563),
                                 borderRadius: BorderRadius.circular(16),
                               ),
-                              child: const Icon(Icons.delete, color: Colors.white, size: 32),
+                              child: const Icon(Icons.delete,
+                                  color: Colors.white, size: 32),
                             ),
                           ),
                         ),
@@ -141,8 +138,8 @@ class _NotesPageState extends State<NotesPage> {
 
                     const SizedBox(height: 24),
 
-                    Row(
-                      children: const [
+                    const Row(
+                      children: [
                         Text(
                           'Last edited (Recent)',
                           style: TextStyle(
@@ -151,17 +148,23 @@ class _NotesPageState extends State<NotesPage> {
                             fontWeight: FontWeight.w600,
                           ),
                         ),
-                        Spacer(),
-                        Icon(Icons.keyboard_arrow_down, color: Colors.grey),
                       ],
                     ),
 
                     const SizedBox(height: 16),
 
-                    const NoteItem(title: 'Rangkuman Kuis HCI', subtitle: 'Last edited 1 hour'),
-                    const NoteItem(title: 'UAS Sciecomp', subtitle: 'Last edited 1 day ago'),
-                    const NoteItem(title: 'Trigono subs', subtitle: 'Last edited 2 days ago'),
-                    const NoteItem(title: 'Cara menemukan Pacar', subtitle: 'Last edited 5 days ago'),
+                    const NoteItem(
+                        title: 'Rangkuman Kuis HCI',
+                        subtitle: 'Last edited 1 hour'),
+                    const NoteItem(
+                        title: 'UAS Sciecomp',
+                        subtitle: 'Last edited 1 day ago'),
+                    const NoteItem(
+                        title: 'Trigono subs',
+                        subtitle: 'Last edited 2 days ago'),
+                    const NoteItem(
+                        title: 'Cara menemukan Pacar',
+                        subtitle: 'Last edited 5 days ago'),
 
                     const SizedBox(height: 100),
                   ],
@@ -229,11 +232,61 @@ class FolderItem extends StatelessWidget {
   }
 }
 
-class NoteItem extends StatelessWidget {
+class NoteItem extends StatefulWidget {
   final String title;
   final String subtitle;
 
   const NoteItem({required this.title, required this.subtitle, super.key});
+
+  @override
+  State<NoteItem> createState() => _NoteItemState();
+}
+
+class _NoteItemState extends State<NoteItem>
+    with SingleTickerProviderStateMixin {
+  bool isFavorite = false;
+  bool _isPressed = false;
+
+  void _showOptionsMenu(BuildContext context) {
+    showModalBottomSheet(
+      backgroundColor: kCardColor,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      context: context,
+      builder: (context) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildOption(context, Icons.edit, "Rename"),
+            _buildOption(context, Icons.download, "Download"),
+            _buildOption(context, Icons.share, "Share"),
+            _buildOption(context, Icons.link, "Copy link"),
+            const Divider(color: Colors.grey),
+            _buildOption(context, Icons.delete, "Delete", isDestructive: true),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOption(BuildContext context, IconData icon, String label,
+      {bool isDestructive = false}) {
+    return ListTile(
+      leading: Icon(icon, color: isDestructive ? Colors.red : Colors.white),
+      title: Text(
+        label,
+        style: TextStyle(
+          color: isDestructive ? Colors.red : Colors.white,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+      onTap: () {
+        Navigator.pop(context);
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -261,7 +314,7 @@ class NoteItem extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  title,
+                  widget.title,
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 16,
@@ -270,7 +323,7 @@ class NoteItem extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  subtitle,
+                  widget.subtitle,
                   style: const TextStyle(
                     color: Colors.grey,
                     fontSize: 14,
@@ -279,9 +332,46 @@ class NoteItem extends StatelessWidget {
               ],
             ),
           ),
-          const Icon(Icons.star_border, color: Colors.grey, size: 20),
+
+          // Favorite star
+          GestureDetector(
+            onTap: () {
+              setState(() => isFavorite = !isFavorite);
+            },
+            child: Icon(
+              isFavorite ? Icons.star : Icons.star_border,
+              color: isFavorite ? kAccentYellow : Colors.grey,
+              size: 20,
+            ),
+          ),
           const SizedBox(width: 8),
-          const Icon(Icons.more_vert, color: Colors.grey, size: 20),
+
+          // Triple dots with light tap animation
+          GestureDetector(
+            onTapDown: (_) => setState(() => _isPressed = true),
+            onTapUp: (_) {
+              Future.delayed(const Duration(milliseconds: 80), () {
+                if (mounted) setState(() => _isPressed = false);
+                _showOptionsMenu(context);
+              });
+            },
+            onTapCancel: () => setState(() => _isPressed = false),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 100),
+              curve: Curves.easeOut,
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: _isPressed ? Colors.white10 : Colors.transparent,
+                shape: BoxShape.circle,
+              ),
+              child: AnimatedScale(
+                scale: _isPressed ? 0.85 : 1.0,
+                duration: const Duration(milliseconds: 100),
+                curve: Curves.easeOutBack,
+                child: const Icon(Icons.more_vert, color: Colors.grey, size: 22),
+              ),
+            ),
+          ),
         ],
       ),
     );

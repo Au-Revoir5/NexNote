@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
 
+const kPrimaryColor = Color(0xFF6366F1);
+const kDarkSurface = Color(0xFF1C1C1E);
+const kCardColor = Color(0xFF2C2C2E);
+const kAccentYellow = Color(0xFFFBBF24);
+
 class FavoritesPage extends StatefulWidget {
   const FavoritesPage({super.key});
 
@@ -153,11 +158,17 @@ class _FavoritesPageState extends State<FavoritesPage> {
   }
 
   Widget _sortOption(String option) {
+    final isSelected = sortBy == option;
     return ListTile(
-      title: Text(option,
-          style: const TextStyle(color: Colors.white, fontSize: 16)),
-      trailing: sortBy == option
-          ? const Icon(Icons.check, color: Colors.blue)
+      title: Text(
+        option,
+        style: TextStyle(
+          color: isSelected ? kPrimaryColor : Colors.white,
+          fontSize: 16,
+        ),
+      ),
+      trailing: isSelected
+          ? const Icon(Icons.check, color: kPrimaryColor)
           : null,
       onTap: () {
         setState(() {
