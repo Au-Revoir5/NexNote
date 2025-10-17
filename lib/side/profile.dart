@@ -54,7 +54,7 @@ class _ProfilePageState extends State<ProfilePage> {
               },
               child: Text(
                 'Save',
-                style: TextStyle(color: Color(0xFF6366F1)),
+                style: TextStyle(color: Colors.grey),
               ),
             ),
           ],
@@ -263,11 +263,6 @@ class _ProfilePageState extends State<ProfilePage> {
                             onPressed: () {
                               Navigator.pop(context);
                               Navigator.pushReplacementNamed(context, '/');
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text('Logged out successfully'),
-                                ),
-                              );
                             },
                             child: Text(
                               'Log Out',
