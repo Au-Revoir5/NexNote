@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'side_bar.dart';
 import '../main/home.dart';
-import '../main/myNotes.dart';
+import '../main/my_notes.dart';
 import '../main/search.dart';
-import 'package:nexnote/profile.dart';
+import 'package:nexnote/side/profile.dart';
 
 // Constants for reuse
 const kPrimaryColor = Color(0xFF6366F1);
