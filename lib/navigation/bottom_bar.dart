@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'side_bar.dart';
 import '../main/home.dart';
-import '../main/notes.dart';
+import '../main/myNotes.dart';
 import '../main/search.dart';
 
 // Constants for reuse
