@@ -1,7 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart'; 
+import 'firebase_options.dart'; 
 import 'landing/landing.dart';
-void main() {
-  runApp(MyApp());
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
@@ -13,10 +21,9 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'My Notes',
       theme: ThemeData.dark().copyWith(
-        scaffoldBackgroundColor: Color(0xFF1C1C1E),
-        primaryColor: Color(0xFF6366F1),
-        
-        appBarTheme: AppBarTheme(
+        scaffoldBackgroundColor: const Color(0xFF1C1C1E),
+        primaryColor: const Color(0xFF6366F1),
+        appBarTheme: const AppBarTheme(
           backgroundColor: Color(0xFF1C1C1E),
           elevation: 0,
           titleTextStyle: TextStyle(
@@ -30,4 +37,3 @@ class MyApp extends StatelessWidget {
     );
   }
 }
-
