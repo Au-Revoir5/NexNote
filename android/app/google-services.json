@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "749220935355",
+    "project_id": "nexnote-app",
+    "storage_bucket": "nexnote-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:749220935355:android:6a0ca2e26807c47dd51b9e",
+        "android_client_info": {
+          "package_name": "com.example.nexnote"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDuPk4ronsM0Y5OZ8kCj56r_DbNVvVmyEk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

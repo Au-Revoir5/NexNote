@@ -1,9 +1,72 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../navigation/bottom_bar.dart';
 
-class SignUpPage extends StatelessWidget {
+class SignUpPage extends StatefulWidget {
   const SignUpPage({super.key});
+
+  @override
+  State<SignUpPage> createState() => _SignUpPageState();
+}
+
+class _SignUpPageState extends State<SignUpPage> {
+  final TextEditingController _usernameController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+
+  bool _isLoading = false;
+
+  Future<void> _signUp() async {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text.trim();
+
+    if (email.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Please fill in all fields.")),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      // ✅ Firebase Auth create user
+      await FirebaseAuth.instance.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+
+      // Optional: update display name
+      await FirebaseAuth.instance.currentUser?.updateDisplayName(_usernameController.text.trim());
+
+      // Navigate to BottomBar (main app)
+      if (!mounted) return;
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (context) => const BottomBar()),
+        (route) => false,
+      );
+    } on FirebaseAuthException catch (e) {
+      String message = "Signup failed. Please try again.";
+      if (e.code == 'email-already-in-use') {
+        message = "That email is already in use.";
+      } else if (e.code == 'invalid-email') {
+        message = "Please enter a valid email address.";
+      } else if (e.code == 'weak-password') {
+        message = "Password must be at least 6 characters.";
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error: $e")),
+      );
+    }
+
+    setState(() => _isLoading = false);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -14,7 +77,7 @@ class SignUpPage extends StatelessWidget {
         backgroundColor: Colors.white,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.black),
-          onPressed: () => Navigator.of(context).pop(), // go back safely
+          onPressed: () => Navigator.of(context).pop(),
         ),
       ),
       body: Theme(
@@ -57,7 +120,9 @@ class SignUpPage extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 40),
+
                   TextFormField(
+                    controller: _usernameController,
                     decoration: InputDecoration(
                       hintText: 'Username',
                       filled: true,
@@ -69,7 +134,9 @@ class SignUpPage extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 20),
+
                   TextFormField(
+                    controller: _emailController,
                     decoration: InputDecoration(
                       hintText: 'Email address',
                       filled: true,
@@ -81,7 +148,9 @@ class SignUpPage extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 20),
+
                   TextFormField(
+                    controller: _passwordController,
                     obscureText: true,
                     decoration: InputDecoration(
                       hintText: 'Password',
@@ -96,15 +165,7 @@ class SignUpPage extends StatelessWidget {
                   const SizedBox(height: 20),
 
                   ElevatedButton(
-                    onPressed: () {
-                      Navigator.pushAndRemoveUntil(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const BottomBar(),
-                        ),
-                        (Route<dynamic> route) => false, // remove all previous routes
-                      );
-                    },
+                    onPressed: _isLoading ? null : _signUp,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.black,
                       padding: const EdgeInsets.symmetric(vertical: 16),
@@ -112,10 +173,15 @@ class SignUpPage extends StatelessWidget {
                         borderRadius: BorderRadius.circular(8),
                       ),
                     ),
-                    child: const Text(
-                      'Sign Up',
-                      style: TextStyle(fontSize: 16, color: Colors.white),
-                    ),
+                    child: _isLoading
+                        ? const CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          )
+                        : const Text(
+                            'Sign Up',
+                            style: TextStyle(fontSize: 16, color: Colors.white),
+                          ),
                   ),
 
                   const SizedBox(height: 20),
@@ -133,8 +199,9 @@ class SignUpPage extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 20),
+
                   OutlinedButton.icon(
-                    onPressed: () {},
+                    onPressed: () {}, // (Google sign-in coming later)
                     icon: const Icon(Icons.login, color: Colors.red),
                     label: const Text(
                       'Continue with Google',
@@ -148,6 +215,7 @@ class SignUpPage extends StatelessWidget {
                       ),
                     ),
                   ),
+
                   const SizedBox(height: 10),
                   OutlinedButton.icon(
                     onPressed: () {},
@@ -164,6 +232,7 @@ class SignUpPage extends StatelessWidget {
                       ),
                     ),
                   ),
+
                   const SizedBox(height: 20),
                   Text.rich(
                     TextSpan(
@@ -173,15 +242,17 @@ class SignUpPage extends StatelessWidget {
                         TextSpan(
                           text: 'Terms of Service',
                           style: TextStyle(
-                              color: Colors.purple[300],
-                              decoration: TextDecoration.underline),
+                            color: Colors.purple[300],
+                            decoration: TextDecoration.underline,
+                          ),
                         ),
                         const TextSpan(text: ' and '),
                         TextSpan(
                           text: 'Privacy Policy',
                           style: TextStyle(
-                              color: Colors.purple[300],
-                              decoration: TextDecoration.underline),
+                            color: Colors.purple[300],
+                            decoration: TextDecoration.underline,
+                          ),
                         ),
                       ],
                     ),
