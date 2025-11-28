@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import '../config/supabase_config.dart';
 import '../navigation/bottom_bar.dart';
 import 'signup.dart';
 
@@ -25,7 +25,7 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
-  // 🔑 Handle login
+  // Supabase login
   Future<void> _handleLogin() async {
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
@@ -41,66 +41,79 @@ class _LoginPageState extends State<LoginPage> {
     });
 
     try {
-      await FirebaseAuth.instance.signInWithEmailAndPassword(
+      final response = await SupabaseConfig.signIn(
         email: email,
         password: password,
       );
 
       if (!mounted) return;
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (context) => const BottomBar()),
-        (route) => false,
-      );
-    } on FirebaseAuthException catch (e) {
-      String message = "Login failed. Please try again.";
-      if (e.code == 'user-not-found') {
-        message = "No user found for that email.";
-      } else if (e.code == 'wrong-password') {
-        message = "Incorrect password.";
-      } else if (e.code == 'invalid-email') {
-        message = "Invalid email address.";
-      }
-      setState(() => _errorMessage = message);
-    } catch (e) {
-      setState(() => _errorMessage = "Unexpected error: $e");
-    }
 
-    setState(() => _isLoading = false);
+      if (response.user != null) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => const BottomBar()),
+          (route) => false,
+        );
+      } else {
+        setState(() => _errorMessage = "Login failed. Please try again.");
+      }
+    } catch (e) {
+      setState(() {
+        _errorMessage = _parseErrorMessage(e.toString());
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
-  // 📧 Handle forgot password
+  // Supabase forgot password
   Future<void> _handleForgotPassword() async {
     final email = _emailController.text.trim();
 
     if (email.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please enter your email first.")),
+        const SnackBar(content: Text("Enter your email first.")),
       );
       return;
     }
 
+    setState(() => _isLoading = true);
+
     try {
-      await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
+      await SupabaseConfig.resetPassword(email);
+
+      if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Password reset email sent to $email")),
-      );
-    } on FirebaseAuthException catch (e) {
-      String message = "Failed to send reset email.";
-      if (e.code == 'user-not-found') {
-        message = "No account found for that email.";
-      } else if (e.code == 'invalid-email') {
-        message = "Invalid email address.";
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message)),
+        SnackBar(content: Text("Password reset link sent to $email")),
       );
     } catch (e) {
+      if (!mounted) return;
+      
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error: $e")),
+        SnackBar(content: Text("Failed to send reset link: ${_parseErrorMessage(e.toString())}")),
       );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
+  }
+
+  // Parse error messages for better UX
+  String _parseErrorMessage(String error) {
+    if (error.contains('Invalid login credentials')) {
+      return 'Invalid email or password';
+    } else if (error.contains('Email not confirmed')) {
+      return 'Please verify your email first';
+    } else if (error.contains('User not found')) {
+      return 'No account found with this email';
+    } else if (error.contains('Network')) {
+      return 'Network error. Please check your connection';
+    }
+    return 'Login failed. Please try again';
   }
 
   @override
@@ -150,6 +163,8 @@ class _LoginPageState extends State<LoginPage> {
                   // Email field
                   TextFormField(
                     controller: _emailController,
+                    keyboardType: TextInputType.emailAddress,
+                    autocorrect: false,
                     decoration: InputDecoration(
                       hintText: 'Email address',
                       filled: true,
@@ -166,6 +181,7 @@ class _LoginPageState extends State<LoginPage> {
                   TextFormField(
                     controller: _passwordController,
                     obscureText: true,
+                    autocorrect: false,
                     decoration: InputDecoration(
                       hintText: 'Password',
                       filled: true,
@@ -179,11 +195,10 @@ class _LoginPageState extends State<LoginPage> {
 
                   const SizedBox(height: 10),
 
-                  // 🔁 Forgot password button
                   Align(
                     alignment: Alignment.centerRight,
                     child: TextButton(
-                      onPressed: _handleForgotPassword,
+                      onPressed: _isLoading ? null : _handleForgotPassword,
                       child: const Text(
                         'Forgot password?',
                         style: TextStyle(color: Colors.black),
@@ -193,7 +208,6 @@ class _LoginPageState extends State<LoginPage> {
 
                   const SizedBox(height: 20),
 
-                  // Login button
                   ElevatedButton(
                     onPressed: _isLoading ? null : _handleLogin,
                     style: ElevatedButton.styleFrom(
@@ -218,7 +232,6 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                   ),
 
-                  // Error message
                   if (_errorMessage != null) ...[
                     const SizedBox(height: 12),
                     Text(
@@ -245,44 +258,41 @@ class _LoginPageState extends State<LoginPage> {
                   const SizedBox(height: 20),
 
                   OutlinedButton.icon(
-                    onPressed: () {}, // Google sign-in (later)
+                    onPressed: () {
+                      // TODO: Implement Google Sign In with Supabase
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text("Google login coming soon")),
+                      );
+                    },
                     icon: const Icon(Icons.login, color: Colors.red),
                     label: const Text(
                       'Login with Google',
                       style: TextStyle(color: Colors.black),
                     ),
-                    style: OutlinedButton.styleFrom(
-                      side: BorderSide(color: Colors.grey[300]!),
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
                   ),
+
                   const SizedBox(height: 10),
+
                   OutlinedButton.icon(
-                    onPressed: () {},
+                    onPressed: () {
+                      // TODO: Implement Apple Sign In with Supabase
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text("Apple login coming soon")),
+                      );
+                    },
                     icon: const Icon(Icons.apple, color: Colors.black),
                     label: const Text(
                       'Login with Apple',
                       style: TextStyle(color: Colors.black),
                     ),
-                    style: OutlinedButton.styleFrom(
-                      side: BorderSide(color: Colors.grey[300]!),
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
                   ),
 
                   const SizedBox(height: 40),
 
-                  // Sign-up redirect
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Text('Don\'t have an account?'),
+                      const Text("Don't have an account?"),
                       TextButton(
                         onPressed: () {
                           Navigator.push(

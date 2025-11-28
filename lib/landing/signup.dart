@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import '../config/supabase_config.dart';
 import '../navigation/bottom_bar.dart';
 
 class SignUpPage extends StatefulWidget {
@@ -16,56 +16,121 @@ class _SignUpPageState extends State<SignUpPage> {
   final TextEditingController _passwordController = TextEditingController();
 
   bool _isLoading = false;
+  String? _errorMessage;
 
+  @override
+  void dispose() {
+    _usernameController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  // Supabase sign up with profile metadata
   Future<void> _signUp() async {
+    final username = _usernameController.text.trim();
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
 
-    if (email.isEmpty || password.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please fill in all fields.")),
-      );
+    if (username.isEmpty || email.isEmpty || password.isEmpty) {
+      setState(() => _errorMessage = "Please fill in all fields");
       return;
     }
 
-    setState(() => _isLoading = true);
-
-    try {
-      // ✅ Firebase Auth create user
-      await FirebaseAuth.instance.createUserWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
-
-      // Optional: update display name
-      await FirebaseAuth.instance.currentUser?.updateDisplayName(_usernameController.text.trim());
-
-      // Navigate to BottomBar (main app)
-      if (!mounted) return;
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (context) => const BottomBar()),
-        (route) => false,
-      );
-    } on FirebaseAuthException catch (e) {
-      String message = "Signup failed. Please try again.";
-      if (e.code == 'email-already-in-use') {
-        message = "That email is already in use.";
-      } else if (e.code == 'invalid-email') {
-        message = "Please enter a valid email address.";
-      } else if (e.code == 'weak-password') {
-        message = "Password must be at least 6 characters.";
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message)),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error: $e")),
-      );
+    // Basic email validation
+    if (!email.contains('@') || !email.contains('.')) {
+      setState(() => _errorMessage = "Please enter a valid email");
+      return;
     }
 
-    setState(() => _isLoading = false);
+    // Password validation
+    if (password.length < 6) {
+      setState(() => _errorMessage = "Password must be at least 6 characters");
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final response = await SupabaseConfig.signUp(
+        email: email,
+        password: password,
+        metadata: {
+          'username': username,
+          'full_name': username, // You can split this into first/last name later
+        },
+      );
+
+      if (!mounted) return;
+
+      if (response.user != null) {
+        // Check if email confirmation is required
+        if (response.session == null) {
+          // Email confirmation required
+          _showSuccessDialog(
+            title: 'Verification Email Sent',
+            message: 'Please check your email to verify your account before logging in.',
+          );
+        } else {
+          // No email confirmation required - user is logged in
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (context) => const BottomBar()),
+            (route) => false,
+          );
+        }
+      } else {
+        setState(() => _errorMessage = "Sign up failed. Please try again.");
+      }
+    } catch (e) {
+      setState(() {
+        _errorMessage = _parseErrorMessage(e.toString());
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  // Parse error messages for better UX
+  String _parseErrorMessage(String error) {
+    if (error.contains('User already registered')) {
+      return 'Email already registered. Please login instead.';
+    } else if (error.contains('Password should be at least')) {
+      return 'Password must be at least 6 characters';
+    } else if (error.contains('Invalid email')) {
+      return 'Please enter a valid email address';
+    } else if (error.contains('Network')) {
+      return 'Network error. Please check your connection';
+    } else if (error.contains('Unable to validate email')) {
+      return 'Invalid email format';
+    }
+    return 'Sign up failed. Please try again';
+  }
+
+  // Show success dialog for email verification
+  void _showSuccessDialog({required String title, required String message}) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop(); // Close dialog
+              Navigator.of(context).pop(); // Go back to login page
+            },
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -123,6 +188,7 @@ class _SignUpPageState extends State<SignUpPage> {
 
                   TextFormField(
                     controller: _usernameController,
+                    autocorrect: false,
                     decoration: InputDecoration(
                       hintText: 'Username',
                       filled: true,
@@ -137,6 +203,8 @@ class _SignUpPageState extends State<SignUpPage> {
 
                   TextFormField(
                     controller: _emailController,
+                    keyboardType: TextInputType.emailAddress,
+                    autocorrect: false,
                     decoration: InputDecoration(
                       hintText: 'Email address',
                       filled: true,
@@ -152,8 +220,9 @@ class _SignUpPageState extends State<SignUpPage> {
                   TextFormField(
                     controller: _passwordController,
                     obscureText: true,
+                    autocorrect: false,
                     decoration: InputDecoration(
-                      hintText: 'Password',
+                      hintText: 'Password (min. 6 characters)',
                       filled: true,
                       fillColor: Colors.grey[200],
                       border: OutlineInputBorder(
@@ -174,15 +243,28 @@ class _SignUpPageState extends State<SignUpPage> {
                       ),
                     ),
                     child: _isLoading
-                        ? const CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 2,
+                        ? const SizedBox(
+                            height: 22,
+                            width: 22,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2.5,
+                            ),
                           )
                         : const Text(
                             'Sign Up',
                             style: TextStyle(fontSize: 16, color: Colors.white),
                           ),
                   ),
+
+                  if (_errorMessage != null) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      _errorMessage!,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: Colors.red),
+                    ),
+                  ],
 
                   const SizedBox(height: 20),
                   Row(
@@ -201,7 +283,11 @@ class _SignUpPageState extends State<SignUpPage> {
                   const SizedBox(height: 20),
 
                   OutlinedButton.icon(
-                    onPressed: () {}, // (Google sign-in coming later)
+                    onPressed: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text("Google sign up coming soon")),
+                      );
+                    },
                     icon: const Icon(Icons.login, color: Colors.red),
                     label: const Text(
                       'Continue with Google',
@@ -218,7 +304,11 @@ class _SignUpPageState extends State<SignUpPage> {
 
                   const SizedBox(height: 10),
                   OutlinedButton.icon(
-                    onPressed: () {},
+                    onPressed: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text("Apple sign up coming soon")),
+                      );
+                    },
                     icon: const Icon(Icons.apple, color: Colors.black),
                     label: const Text(
                       'Continue with Apple',
@@ -258,6 +348,7 @@ class _SignUpPageState extends State<SignUpPage> {
                     ),
                     textAlign: TextAlign.center,
                   ),
+                  const SizedBox(height: 20),
                 ],
               ),
             ),
