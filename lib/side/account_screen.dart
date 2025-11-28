@@ -1,11 +1,9 @@
-// account_screen.dart
-
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'notifications_screen.dart';
 import 'privacy_security_screen.dart';
 
-// Color constants from your myNotes.dart example for consistency
 const kPrimaryColor = Color(0xFF6366F1);
 const kDarkSurface = Color(0xFF1C1C1E);
 const kCardColor = Color(0xFF2C2C2E);
@@ -18,39 +16,74 @@ class AccountScreen extends StatefulWidget {
 }
 
 class _AccountScreenState extends State<AccountScreen> {
-  // Controllers to manage the text in the fields
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
 
-  // State flags to toggle between viewing and editing
   bool _isEditingName = false;
   bool _isEditingEmail = false;
 
   @override
   void initState() {
     super.initState();
-    _loadUserData();
+    _loadLocal();
+    _loadFromSupabase(); // 👈 load real data
   }
 
-  // Load user data from shared_preferences
-  Future<void> _loadUserData() async {
+  // --------------------------
+  // LOCAL STORAGE
+  // --------------------------
+  Future<void> _loadLocal() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      _nameController.text = prefs.getString('user_name') ?? 'John';
-      _emailController.text = prefs.getString('user_email') ?? 'vextor@gmail.com';
+      _nameController.text = prefs.getString('user_name') ?? '';
+      _emailController.text = prefs.getString('user_email') ?? '';
     });
   }
 
-  // Save user data to shared_preferences
-  Future<void> _saveUserData() async {
+  Future<void> _saveLocal() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('user_name', _nameController.text);
     await prefs.setString('user_email', _emailController.text);
   }
 
+  // --------------------------
+  // SUPABASE FETCH
+  // --------------------------
+  Future<void> _loadFromSupabase() async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return;
+
+    final response = await Supabase.instance.client
+        .from('profiles')
+        .select('username, email')
+        .eq('id', user.id)
+        .single();
+
+    setState(() {
+      _nameController.text = response['username'] ?? '';
+      _emailController.text = response['email'] ?? '';
+    });
+
+    _saveLocal(); // save fetched data
+  }
+
+  // --------------------------
+  // SUPABASE UPDATE
+  // --------------------------
+  Future<void> _updateSupabase() async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return;
+
+    await Supabase.instance.client.from('profiles').update({
+      'username': _nameController.text,
+      'email': _emailController.text,
+    }).eq('id', user.id);
+
+    _saveLocal();
+  }
+
   @override
   void dispose() {
-    // Clean up the controllers when the widget is disposed
     _nameController.dispose();
     _emailController.dispose();
     super.dispose();
@@ -89,18 +122,32 @@ class _AccountScreenState extends State<AccountScreen> {
                   label: 'Name',
                   controller: _nameController,
                   isEditing: _isEditingName,
-                  onEditPressed: () => setState(() => _isEditingName = !_isEditingName),
+                  onToggle: () async {
+                    if (_isEditingName) {
+                      await _updateSupabase();
+                    }
+                    setState(() => _isEditingName = !_isEditingName);
+                  },
                 ),
+
                 _buildDivider(),
+
                 _buildEditableInfoField(
                   label: 'Email Address',
                   controller: _emailController,
                   isEditing: _isEditingEmail,
                   keyboardType: TextInputType.emailAddress,
-                  onEditPressed: () => setState(() => _isEditingEmail = !_isEditingEmail),
+                  onToggle: () async {
+                    if (_isEditingEmail) {
+                      await _updateSupabase();
+                    }
+                    setState(() => _isEditingEmail = !_isEditingEmail);
+                  },
                 ),
               ]),
+
               const SizedBox(height: 24),
+
               _buildSectionTitle('SECURITY & PRIVACY'),
               const SizedBox(height: 12),
               _buildInfoCard([
@@ -117,7 +164,9 @@ class _AccountScreenState extends State<AccountScreen> {
                   },
                 ),
               ]),
+
               const SizedBox(height: 24),
+
               _buildSectionTitle('PREFERENCES'),
               const SizedBox(height: 12),
               _buildInfoCard([
@@ -137,11 +186,11 @@ class _AccountScreenState extends State<AccountScreen> {
                 _buildMenuItem(
                   icon: Icons.language_outlined,
                   title: 'Language',
-                  trailing: const Text('English', style: TextStyle(color: Colors.white54)),
+                  trailing: const Text('English',
+                      style: TextStyle(color: Colors.white54)),
                   onTap: () {},
                 ),
               ]),
-              const SizedBox(height: 32),
             ],
           ),
         ),
@@ -149,7 +198,8 @@ class _AccountScreenState extends State<AccountScreen> {
     );
   }
 
-  // Helper widget for section titles, styled like 'Folder' in your example
+  // --------------------------------------------------
+
   Widget _buildSectionTitle(String title) {
     return Text(
       title,
@@ -162,25 +212,21 @@ class _AccountScreenState extends State<AccountScreen> {
     );
   }
 
-  // Helper for the main card container
   Widget _buildInfoCard(List<Widget> children) {
     return Container(
       decoration: BoxDecoration(
         color: kCardColor,
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Column(
-        children: children,
-      ),
+      child: Column(children: children),
     );
   }
 
-  // Reusable widget for editable fields like Name and Email
   Widget _buildEditableInfoField({
     required String label,
     required TextEditingController controller,
     required bool isEditing,
-    required VoidCallback onEditPressed,
+    required VoidCallback onToggle,
     TextInputType keyboardType = TextInputType.text,
   }) {
     return Padding(
@@ -191,47 +237,49 @@ class _AccountScreenState extends State<AccountScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  label,
-                  style: const TextStyle(color: Colors.white54, fontSize: 13),
-                ),
+                Text(label,
+                    style:
+                        const TextStyle(color: Colors.white54, fontSize: 13)),
                 const SizedBox(height: 4),
-                isEditing
-                    ? TextField(
-                        controller: controller,
-                        autofocus: true,
-                        keyboardType: keyboardType,
-                        style: const TextStyle(color: Colors.white, fontSize: 16),
-                        decoration: const InputDecoration(
-                          isDense: true,
-                          contentPadding: EdgeInsets.zero,
-                          border: InputBorder.none,
-                        ),
-                      )
-                    : Text(
-                        controller.text,
-                        style: const TextStyle(color: Colors.white, fontSize: 16),
-                      ),
+
+                if (isEditing)
+                  TextField(
+                    controller: controller,
+                    autofocus: true,
+                    keyboardType: keyboardType,
+                    style:
+                        const TextStyle(color: Colors.white, fontSize: 16),
+                    decoration: const InputDecoration(
+                      isDense: true,
+                      contentPadding: EdgeInsets.zero,
+                      border: InputBorder.none,
+                    ),
+                  )
+                else
+                  Text(
+                    controller.text,
+                    style:
+                        const TextStyle(color: Colors.white, fontSize: 16),
+                  ),
               ],
             ),
           ),
+
           IconButton(
             icon: Icon(
-              isEditing ? Icons.check_circle_outline : Icons.edit_outlined,
-              color: isEditing ? Colors.white : Colors.white54,
+              isEditing
+                  ? Icons.check_circle_outline
+                  : Icons.edit_outlined,
+              color: isEditing ? kPrimaryColor : Colors.white54,
               size: 22,
             ),
-            onPressed: () async {
-              await _saveUserData();
-              onEditPressed();
-            },
+            onPressed: onToggle,
           ),
         ],
       ),
     );
   }
 
-  // General purpose menu item for non-editable settings
   Widget _buildMenuItem({
     required IconData icon,
     required String title,
@@ -244,7 +292,8 @@ class _AccountScreenState extends State<AccountScreen> {
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          padding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           child: Row(
             children: [
               Icon(icon, color: Colors.white, size: 24),
@@ -261,7 +310,8 @@ class _AccountScreenState extends State<AccountScreen> {
               ),
               if (trailing != null) trailing,
               const SizedBox(width: 8),
-              const Icon(Icons.chevron_right, color: Colors.white54, size: 24),
+              const Icon(Icons.chevron_right,
+                  color: Colors.white54, size: 24),
             ],
           ),
         ),
@@ -269,10 +319,9 @@ class _AccountScreenState extends State<AccountScreen> {
     );
   }
 
-  // A divider with padding consistent with the Settings page
   Widget _buildDivider() {
     return Padding(
-      padding: const EdgeInsets.only(left: 56), // Aligns with text after icon
+      padding: const EdgeInsets.only(left: 56),
       child: Container(
         height: 0.5,
         color: Colors.white10,

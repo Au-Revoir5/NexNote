@@ -24,6 +24,7 @@ class SupabaseConfig {
       authOptions: const FlutterAuthClientOptions(
         authFlowType: AuthFlowType.pkce,
       ),
+      
     );
   }
 

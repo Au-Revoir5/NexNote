@@ -28,73 +28,77 @@ class _SignUpPageState extends State<SignUpPage> {
 
   // Supabase sign up with profile metadata
   Future<void> _signUp() async {
-    final username = _usernameController.text.trim();
-    final email = _emailController.text.trim();
-    final password = _passwordController.text.trim();
+  final username = _usernameController.text.trim();
+  final email = _emailController.text.trim();
+  final password = _passwordController.text.trim();
 
-    if (username.isEmpty || email.isEmpty || password.isEmpty) {
-      setState(() => _errorMessage = "Please fill in all fields");
+  if (username.isEmpty || email.isEmpty || password.isEmpty) {
+    setState(() => _errorMessage = "Please fill in all fields");
+    return;
+  }
+
+  setState(() {
+    _isLoading = true;
+    _errorMessage = null;
+  });
+
+  try {
+    // 1️⃣ Create user with metadata
+    final response = await SupabaseConfig.signUp(
+      email: email,
+      password: password,
+      metadata: {
+        'username': username,
+        'full_name': username, // optional
+      },
+    );
+
+    final user = response.user;
+    if (user == null) {
+      setState(() => _errorMessage = "Sign up failed.");
       return;
     }
 
-    // Basic email validation
-    if (!email.contains('@') || !email.contains('.')) {
-      setState(() => _errorMessage = "Please enter a valid email");
-      return;
+    // 2️⃣ Ensure no duplicate profile row
+    final existingProfile = await SupabaseConfig.client
+        .from('profiles')
+        .select()
+        .eq('id', user.id)
+        .maybeSingle();
+
+    if (existingProfile == null) {
+      // 3️⃣ Insert profile (only if not exists)
+      await SupabaseConfig.client.from('profiles').insert({
+        'id': user.id,
+        'email': email,
+        'username': username,
+        'full_name': username,
+      });
     }
 
-    // Password validation
-    if (password.length < 6) {
-      setState(() => _errorMessage = "Password must be at least 6 characters");
-      return;
-    }
-
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
-
-    try {
-      final response = await SupabaseConfig.signUp(
-        email: email,
-        password: password,
-        metadata: {
-          'username': username,
-          'full_name': username, // You can split this into first/last name later
-        },
+    // 4️⃣ If email verification is required
+    if (response.session == null) {
+      _showSuccessDialog(
+        title: 'Verification Email Sent',
+        message:
+            'Please verify your email before logging in.',
       );
-
+    } else {
       if (!mounted) return;
 
-      if (response.user != null) {
-        // Check if email confirmation is required
-        if (response.session == null) {
-          // Email confirmation required
-          _showSuccessDialog(
-            title: 'Verification Email Sent',
-            message: 'Please check your email to verify your account before logging in.',
-          );
-        } else {
-          // No email confirmation required - user is logged in
-          Navigator.pushAndRemoveUntil(
-            context,
-            MaterialPageRoute(builder: (context) => const BottomBar()),
-            (route) => false,
-          );
-        }
-      } else {
-        setState(() => _errorMessage = "Sign up failed. Please try again.");
-      }
-    } catch (e) {
-      setState(() {
-        _errorMessage = _parseErrorMessage(e.toString());
-      });
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const BottomBar()),
+        (_) => false,
+      );
     }
+  } catch (e) {
+    setState(() => _errorMessage = _parseErrorMessage(e.toString()));
+  } finally {
+    if (mounted) setState(() => _isLoading = false);
   }
+}
+
 
   // Parse error messages for better UX
   String _parseErrorMessage(String error) {
