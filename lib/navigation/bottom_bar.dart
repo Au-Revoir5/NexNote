@@ -3,6 +3,7 @@ import 'side_bar.dart';
 import '../main/home.dart';
 import '../main/my_notes.dart';
 import '../main/search.dart';
+import '../main/add.dart';
 import 'package:nexnote/side/profile.dart';
 
 // Constants for reuse
@@ -24,7 +25,7 @@ class _BottomBarState extends State<BottomBar> {
   static final List<Widget> _pages = <Widget>[
     HomePage(),
     SearchPage(),
-    Center(child: Text('Add', style: TextStyle(color: Colors.white, fontSize: 24))),
+    AddNotePage(),
     Center(child: Text('Tools', style: TextStyle(color: Colors.white, fontSize: 24))),
     NotesPage(),
   ];
@@ -34,6 +35,9 @@ class _BottomBarState extends State<BottomBar> {
       _currentIndex = index;
     });
   }
+
+  // Check if current page should show drawer
+  bool get _shouldShowDrawer => _currentIndex != 2; // Hide drawer on Add page (index 2)
 
   @override
   Widget build(BuildContext context) {
@@ -56,118 +60,131 @@ class _BottomBarState extends State<BottomBar> {
           resizeToAvoidBottomInset: false,
 
           appBar: AppBar(
-        title: Text(_getPageTitle()),
-        backgroundColor: kDarkSurface,
-        elevation: 0,
-        surfaceTintColor: Colors.transparent,
-        shadowColor: Colors.transparent,
-        titleTextStyle: const TextStyle(
-          color: Colors.white,
-          fontSize: 20,
-          fontWeight: FontWeight.w600,
-        ),
-        iconTheme: const IconThemeData(color: Colors.white),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 16.0),
-            child: GestureDetector(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => ProfilePage()),
-                );
-              },
-              child: CircleAvatar(
-                radius: 18,
-                backgroundColor: Colors.white,
-                child: const Text(
-                  "PFP",
-                  style: TextStyle(
-                    color: Colors.black,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
+            title: Text(_getPageTitle()),
+            backgroundColor: kDarkSurface,
+            elevation: 0,
+            surfaceTintColor: Colors.transparent,
+            shadowColor: Colors.transparent,
+            titleTextStyle: const TextStyle(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.w600,
+            ),
+            iconTheme: const IconThemeData(color: Colors.white),
+            // Conditionally show back button instead of hamburger menu
+            leading: _shouldShowDrawer 
+                ? null // Show default hamburger menu
+                : IconButton(
+                    icon: const Icon(Icons.arrow_back, color: Colors.white),
+                    onPressed: () => _onTabTapped(0), // Go back to home
+                  ),
+            automaticallyImplyLeading: _shouldShowDrawer, // Only show hamburger if drawer is enabled
+            // Hide profile picture on Add page
+            actions: _shouldShowDrawer ? [
+              Padding(
+                padding: const EdgeInsets.only(right: 16.0),
+                child: GestureDetector(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => ProfilePage()),
+                    );
+                  },
+                  child: CircleAvatar(
+                    radius: 18,
+                    backgroundColor: Colors.white,
+                    child: const Text(
+                      "PFP",
+                      style: TextStyle(
+                        color: Colors.black,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
                 ),
               ),
-            ),
+            ] : null,
           ),
-        ],
-      ),
 
-      drawer: SideBar(onNavigate: _onTabTapped),
+          // Only show drawer when not on Add page
+          drawer: _shouldShowDrawer ? SideBar(onNavigate: _onTabTapped) : null,
+          drawerEnableOpenDragGesture: _shouldShowDrawer, // Disable swipe gesture on Add page
 
-      body: Stack(
-        children: [
-          // Main content with bottom padding
-          Positioned.fill(
-            child: Padding(
-              padding: const EdgeInsets.only(bottom: 36),
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 300),
-                transitionBuilder: (Widget child, Animation<double> animation) {
-                  return SlideTransition(
-                    position: animation.drive(
-                      Tween(begin: const Offset(0.1, 0), end: Offset.zero)
-                          .chain(CurveTween(curve: Curves.easeOut)),
-                    ),
-                    child: child,
-                  );
-                },
-                child: Container(
-                  key: ValueKey<int>(_currentIndex),
-                  color: kDarkSurface,
-                  child: _pages[_currentIndex],
-                ),
-              ),
-            ),
-          ),
-          
-          // Fixed Bottom Navigation Bar with absolute positioning
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            height: 72,
-            child: IgnorePointer(
-              ignoring: false,
-              child: Container(
-                color: kDarkSurface,
+          body: Stack(
+            children: [
+              // Main content with bottom padding
+              Positioned.fill(
                 child: Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: Container(
-                    height: 60,
-                    color: kDarkSurface,
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceAround,
-                      children: <Widget>[
-                        _buildTabItem(icon: Icons.home, index: 0, label: 'Home'),
-                        _buildTabItem(icon: Icons.search, index: 1, label: 'Search'),
-                        _buildCenterLabel(index: 2, label: 'Add'),
-                        _buildTabItem(icon: Icons.build, index: 3, label: 'Tools'),
-                        _buildTabItem(icon: Icons.note, index: 4, label: 'Notes'),
-                      ],
+                  padding: EdgeInsets.only(bottom: _shouldShowDrawer ? 36 : 0),
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 300),
+                    transitionBuilder: (Widget child, Animation<double> animation) {
+                      return SlideTransition(
+                        position: animation.drive(
+                          Tween(begin: const Offset(0.1, 0), end: Offset.zero)
+                              .chain(CurveTween(curve: Curves.easeOut)),
+                        ),
+                        child: child,
+                      );
+                    },
+                    child: Container(
+                      key: ValueKey<int>(_currentIndex),
+                      color: kDarkSurface,
+                      child: _pages[_currentIndex],
                     ),
                   ),
                 ),
               ),
-            ),
+              
+              // Fixed Bottom Navigation Bar with absolute positioning - Hide on Add page
+              if (_shouldShowDrawer) ...[
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  height: 72,
+                  child: IgnorePointer(
+                    ignoring: false,
+                    child: Container(
+                      color: kDarkSurface,
+                      child: Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: Container(
+                          height: 60,
+                          color: kDarkSurface,
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceAround,
+                            children: <Widget>[
+                              _buildTabItem(icon: Icons.home, index: 0, label: 'Home'),
+                              _buildTabItem(icon: Icons.search, index: 1, label: 'Search'),
+                              _buildCenterLabel(index: 2, label: 'Add'),
+                              _buildTabItem(icon: Icons.build, index: 3, label: 'Tools'),
+                              _buildTabItem(icon: Icons.note, index: 4, label: 'Notes'),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                
+                // Fixed Floating Action Button with absolute positioning
+                Positioned(
+                  left: screenWidth / 2 - 28,
+                  bottom: 48,
+                  child: IgnorePointer(
+                    ignoring: false,
+                    child: FloatingActionButton(
+                      backgroundColor: kPrimaryColor,
+                      onPressed: () => _onTabTapped(2),
+                      child: const Icon(Icons.add, color: Colors.white),
+                    ),
+                  ),
+                ),
+              ],
+            ],
           ),
-          
-          // Fixed Floating Action Button with absolute positioning
-          Positioned(
-            left: screenWidth / 2 - 28,
-            bottom: 48,
-            child: IgnorePointer(
-              ignoring: false,
-              child: FloatingActionButton(
-                backgroundColor: kPrimaryColor,
-                onPressed: () => _onTabTapped(2),
-                child: const Icon(Icons.add, color: Colors.white),
-              ),
-            ),
-          ),
-        ],
-      ),
         ),
       ),
     );
@@ -175,6 +192,8 @@ class _BottomBarState extends State<BottomBar> {
 
   String _getPageTitle() {
     switch (_currentIndex) {
+      case 2:
+        return 'Add Note';
       case 4:
         return 'My Notes';
       default:
