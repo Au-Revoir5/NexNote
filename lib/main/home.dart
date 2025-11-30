@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 // Constants for reuse
 const kPrimaryColor = Color(0xFF6366F1);
@@ -6,6 +7,9 @@ const kDarkSurface = Color(0xFF1C1C1E);
 const kCardColor = Color(0xFF2C2C2E);
 const kAccentYellow = Color(0xFFFBBF24);
 
+// -------------------------------------------------------------
+// HomePage Widget Wrapper
+// -------------------------------------------------------------
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
@@ -17,11 +21,19 @@ class _HomePageState extends State<HomePage>
     with SingleTickerProviderStateMixin {
   late AnimationController _animationController;
   late Animation<int> _characterCount;
-  final String _fullText = "Welcome Your Name!";
+
+  String _username = "User";
+
+  String get _fullText => "Welcome $_username!";
 
   @override
   void initState() {
     super.initState();
+    _setupAnimation();
+    _loadUsername();
+  }
+
+  void _setupAnimation() {
     _animationController = AnimationController(
       duration: Duration(milliseconds: 1750),
       vsync: this,
@@ -30,12 +42,45 @@ class _HomePageState extends State<HomePage>
     _characterCount = StepTween(
       begin: 0,
       end: _fullText.length,
-    ).animate(CurvedAnimation(
-      parent: _animationController,
-      curve: Curves.easeInOut,
-    ));
+    ).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
+    );
+  }
 
-    _animationController.forward();
+  // -------------------------------------------------------------
+  // Fetch username from Supabase
+  // -------------------------------------------------------------
+  Future<void> _loadUsername() async {
+    final supabase = Supabase.instance.client;
+    final user = supabase.auth.currentUser;
+
+    if (user == null) return;
+
+    final res = await supabase
+        .from('profiles')
+        .select('username')
+        .eq('id', user.id)
+        .single();
+
+    final loadedUsername = res['username'] ?? "User";
+
+    setState(() {
+      _username = loadedUsername;
+
+      // rebuild animation with correct text length
+      _characterCount = StepTween(
+        begin: 0,
+        end: _fullText.length,
+      ).animate(
+        CurvedAnimation(
+          parent: _animationController,
+          curve: Curves.easeInOut,
+        ),
+      );
+    });
+
+    // restart animation from scratch
+    _animationController.forward(from: 0);
   }
 
   @override
@@ -44,48 +89,48 @@ class _HomePageState extends State<HomePage>
     super.dispose();
   }
 
+  // -------------------------------------------------------------
+  // Animated TextSpan Builder (Dynamic username color)
+  // -------------------------------------------------------------
   List<TextSpan> _buildAnimatedTextSpans(String animatedText) {
-  List<TextSpan> spans = [];
+  final welcomePrefix = "Welcome ";
 
-  const welcomePrefix = "Welcome ";
-  const nameText = "Your Name!";
+  if (animatedText.isEmpty) return [];
 
-  if (animatedText.isEmpty) return spans;
-
-  // Add 'Welcome '
+  // Still typing "Welcome "
   if (animatedText.length <= welcomePrefix.length) {
-    spans.add(TextSpan(
-      text: animatedText,
-      style: TextStyle(color: Colors.white),
-    ));
-    return spans;
-  } else {
-    spans.add(TextSpan(
+    return [
+      TextSpan(
+        text: animatedText,
+        style: TextStyle(color: Colors.white),
+      )
+    ];
+  }
+
+  // "Welcome " finished, add it as white
+  final spans = <TextSpan>[
+    TextSpan(
       text: welcomePrefix,
       style: TextStyle(color: Colors.white),
-    ));
-  }
+    ),
+  ];
 
-  // Add 'Your Name'
   final nameStart = welcomePrefix.length;
-  final nameEnd = nameStart + nameText.length;
+  final remaining = animatedText.length > nameStart
+      ? animatedText.substring(nameStart)
+      : '';
 
-  if (animatedText.length <= nameEnd) {
-    spans.add(TextSpan(
-      text: animatedText.substring(nameStart),
-      style: TextStyle(color: kPrimaryColor),
-    ));
-    return spans;
-  } else {
-    spans.add(TextSpan(
-      text: nameText,
-      style: TextStyle(color: kPrimaryColor),
-    ));
-  }
+  spans.add(TextSpan(
+    text: remaining,
+    style: TextStyle(color: kPrimaryColor),
+  ));
 
   return spans;
 }
 
+  // -------------------------------------------------------------
+  // UI
+  // -------------------------------------------------------------
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -121,6 +166,7 @@ class _HomePageState extends State<HomePage>
               ),
             ),
             SizedBox(height: 32),
+
             Row(
               children: [
                 Expanded(
@@ -144,6 +190,7 @@ class _HomePageState extends State<HomePage>
               ],
             ),
             SizedBox(height: 16),
+
             Center(
               child: SizedBox(
                 width: 150,
@@ -156,7 +203,10 @@ class _HomePageState extends State<HomePage>
                 ),
               ),
             ),
+
             SizedBox(height: 32),
+
+            // ---------------- Explore notes banner ----------------
             Container(
               padding: EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -178,11 +228,15 @@ class _HomePageState extends State<HomePage>
                 ],
               ),
             ),
+
             SizedBox(height: 24),
+
+            // ---------------- Search, Filter, Sort ----------------
             Row(
               children: [
                 Expanded(
-                  child: SearchFilterSortBox(icon: Icons.search, label: 'Search'),
+                  child: SearchFilterSortBox(
+                      icon: Icons.search, label: 'Search'),
                 ),
                 SizedBox(width: 12),
                 SearchFilterSortBox(icon: Icons.filter_alt, label: 'Filter'),
@@ -190,7 +244,10 @@ class _HomePageState extends State<HomePage>
                 SearchFilterSortBox(icon: Icons.sort, label: 'Sort'),
               ],
             ),
+
             SizedBox(height: 24),
+
+            // ---------------- Community Notes ----------------
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -211,7 +268,9 @@ class _HomePageState extends State<HomePage>
                 ),
               ],
             ),
+
             SizedBox(height: 16),
+
             GridView.count(
               crossAxisCount: 2,
               shrinkWrap: true,
@@ -220,14 +279,33 @@ class _HomePageState extends State<HomePage>
               mainAxisSpacing: 12,
               childAspectRatio: 1.2,
               children: [
-                NoteCard(title: 'Statistics', backgroundColor: Colors.white, hasColoredElements: true),
-                NoteCard(title: 'Matematika', backgroundColor: Color(0xFFFFF3CD), hasColoredElements: true),
-                NoteCard(title: 'Cara Dapat Pacar', backgroundColor: Colors.white, hasColoredElements: false),
-                NoteCard(title: 'Biografi Darrell', backgroundColor: Color(0xFFFFE5E5), hasColoredElements: true),
-                NoteCard(title: 'Physics', backgroundColor: Color(0xFFFFF0F0), hasColoredElements: true),
-                NoteCard(title: 'Biology', backgroundColor: Color(0xFFFFF8E1), hasColoredElements: true),
+                NoteCard(
+                    title: 'Statistics',
+                    backgroundColor: Colors.white,
+                    hasColoredElements: true),
+                NoteCard(
+                    title: 'Matematika',
+                    backgroundColor: Color(0xFFFFF3CD),
+                    hasColoredElements: true),
+                NoteCard(
+                    title: 'Cara Dapat Pacar',
+                    backgroundColor: Colors.white,
+                    hasColoredElements: false),
+                NoteCard(
+                    title: 'Biografi Darrell',
+                    backgroundColor: Color(0xFFFFE5E5),
+                    hasColoredElements: true),
+                NoteCard(
+                    title: 'Physics',
+                    backgroundColor: Color(0xFFFFF0F0),
+                    hasColoredElements: true),
+                NoteCard(
+                    title: 'Biology',
+                    backgroundColor: Color(0xFFFFF8E1),
+                    hasColoredElements: true),
               ],
             ),
+
             SizedBox(height: 20),
           ],
         ),
@@ -236,6 +314,10 @@ class _HomePageState extends State<HomePage>
   }
 }
 
+// -------------------------------------------------------------
+// UI COMPONENTS
+// -------------------------------------------------------------
+
 class ActionButton extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -243,7 +325,8 @@ class ActionButton extends StatelessWidget {
   final Color textColor;
   final Color? borderColor;
 
-  const ActionButton({super.key, 
+  const ActionButton({
+    super.key,
     required this.icon,
     required this.label,
     required this.backgroundColor,
@@ -286,7 +369,8 @@ class NoteCard extends StatelessWidget {
   final Color backgroundColor;
   final bool hasColoredElements;
 
-  const NoteCard({super.key, 
+  const NoteCard({
+    super.key,
     required this.title,
     required this.backgroundColor,
     required this.hasColoredElements,
@@ -330,7 +414,9 @@ class NoteCard extends StatelessWidget {
                   width: double.infinity,
                   height: 20,
                   decoration: BoxDecoration(
-                    color: hasColoredElements ? Colors.blue[100] : Colors.grey[200],
+                    color: hasColoredElements
+                        ? Colors.blue[100]
+                        : Colors.grey[200],
                     borderRadius: BorderRadius.circular(4),
                   ),
                 ),
@@ -339,11 +425,10 @@ class NoteCard extends StatelessWidget {
                 SizedBox(height: 4),
                 coloredLine(Colors.grey[300], 0.8),
                 SizedBox(height: 4),
-                if (hasColoredElements)
-                  ...[
-                    coloredLine(Colors.orange[200], 0.6),
-                    SizedBox(height: 4),
-                  ],
+                if (hasColoredElements) ...[
+                  coloredLine(Colors.orange[200], 0.6),
+                  SizedBox(height: 4),
+                ],
                 coloredLine(Colors.grey[300], 0.9),
               ],
             ),
@@ -369,7 +454,11 @@ class SearchFilterSortBox extends StatelessWidget {
   final IconData icon;
   final String label;
 
-  const SearchFilterSortBox({super.key, required this.icon, required this.label});
+  const SearchFilterSortBox({
+    super.key,
+    required this.icon,
+    required this.label,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -396,5 +485,3 @@ class SearchFilterSortBox extends StatelessWidget {
     );
   }
 }
-
-

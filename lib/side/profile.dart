@@ -63,7 +63,7 @@ class _ProfilePageState extends State<ProfilePage> {
               onPressed: () => Navigator.pop(context),
             ),
             TextButton(
-              child: Text('Save', style: TextStyle(color: Colors.grey)),
+              child: Text('Save', style: TextStyle(color: Color(0xFF6366F1))),
               onPressed: () async {
                 final newName = nameController.text;
 

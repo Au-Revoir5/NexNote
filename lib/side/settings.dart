@@ -17,7 +17,6 @@ class SettingsScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: kDarkSurface,
       appBar: AppBar(
-        // ... (rest of your AppBar code is unchanged)
         backgroundColor: kDarkSurface,
         elevation: 0,
         leading: IconButton(
@@ -48,7 +47,6 @@ class SettingsScreen extends StatelessWidget {
                 _buildMenuItem(
                   icon: Icons.person_outline,
                   title: 'Account',
-                  // 👇 2. UPDATE THE onTap ACTION HERE
                   onTap: () {
                     Navigator.push(
                       context,
