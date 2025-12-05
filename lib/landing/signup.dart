@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../config/supabase_config.dart';
+import '../services/supabase_config.dart';
 import '../navigation/bottom_bar.dart';
 
 class SignUpPage extends StatefulWidget {

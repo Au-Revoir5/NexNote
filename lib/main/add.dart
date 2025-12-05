@@ -17,6 +17,7 @@ class AddNotePage extends StatefulWidget {
 
 class _AddNotePageState extends State<AddNotePage> {
   final TextEditingController _titleController = TextEditingController();
+  final TextEditingController _descriptionController = TextEditingController();
   final TextEditingController _tagController = TextEditingController();
   
   File? _selectedFile;
@@ -31,6 +32,7 @@ class _AddNotePageState extends State<AddNotePage> {
   @override
   void dispose() {
     _titleController.dispose();
+    _descriptionController.dispose();
     _tagController.dispose();
     super.dispose();
   }
@@ -121,6 +123,9 @@ class _AddNotePageState extends State<AddNotePage> {
       await supabase.from('notes').insert({
         'user_id': user.id,
         'title': _titleController.text.trim(),
+        'description': _descriptionController.text.trim().isEmpty 
+            ? null 
+            : _descriptionController.text.trim(),
         'file_url': fileUrl,
         'file_type': _fileType,
         'is_public': _isPublic,
@@ -136,9 +141,6 @@ class _AddNotePageState extends State<AddNotePage> {
           ),
         );
 
-        // Navigate back to notes page (bottom navigation will handle this)
-        // If using a BottomNavigationBar, you can set the index to 0 (notes page)
-        // Or simply pop to go back
         Navigator.pop(context);
       }
     } catch (e) {
@@ -162,9 +164,27 @@ class _AddNotePageState extends State<AddNotePage> {
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
-      child: Column(
+    return Scaffold(
+      backgroundColor: kDarkSurface,
+      appBar: AppBar(
+        backgroundColor: kDarkSurface,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: const Text(
+          'Add Note',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Title Input
@@ -217,6 +237,36 @@ class _AddNotePageState extends State<AddNotePage> {
               ),
             ),
           ],
+
+          const SizedBox(height: 24),
+
+          // Description Input
+          const Text(
+            'Description (Optional)',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 15,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            decoration: BoxDecoration(
+              color: kCardColor,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: TextField(
+              controller: _descriptionController,
+              style: const TextStyle(color: Colors.white, fontSize: 15),
+              maxLines: 3,
+              decoration: const InputDecoration(
+                hintText: 'Add a description...',
+                hintStyle: TextStyle(color: Colors.grey, fontSize: 14),
+                border: InputBorder.none,
+                contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              ),
+            ),
+          ),
 
           const SizedBox(height: 24),
 
@@ -567,6 +617,7 @@ class _AddNotePageState extends State<AddNotePage> {
           const SizedBox(height: 80), 
         ],
       ),
+    ),
     );
   }
 }

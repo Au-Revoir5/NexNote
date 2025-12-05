@@ -4,6 +4,7 @@ import '../main/home.dart';
 import '../main/my_notes.dart';
 import '../main/search.dart';
 import '../main/add.dart';
+import '../main/tools.dart';
 import 'package:nexnote/side/profile.dart';
 
 // Constants for reuse
@@ -25,19 +26,37 @@ class _BottomBarState extends State<BottomBar> {
   static final List<Widget> _pages = <Widget>[
     HomePage(),
     SearchPage(),
-    AddNotePage(),
-    Center(child: Text('Tools', style: TextStyle(color: Colors.white, fontSize: 24))),
+    EnhanceNotePage(),
     NotesPage(),
   ];
 
   void _onTabTapped(int index) {
+    if (index == 2) {
+      // Navigate to Add Note page as a separate screen
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => const AddNotePage()),
+      ).then((_) {
+        // Refresh the current page after returning
+        setState(() {});
+      });
+      return; // Don't change the current tab
+    }
+    
+    // Map bottom bar indices to page indices
+    // Bottom bar: 0=Home, 1=Search, 2=Add(skip), 3=Tools, 4=Notes
+    // Pages array: 0=Home, 1=Search, 2=Tools, 3=Notes
+    int pageIndex;
+    if (index < 2) {
+      pageIndex = index; // Home and Search stay the same
+    } else {
+      pageIndex = index - 1; // Tools becomes 2, Notes becomes 3
+    }
+    
     setState(() {
-      _currentIndex = index;
+      _currentIndex = pageIndex;
     });
   }
-
-  // Check if current page should show drawer
-  bool get _shouldShowDrawer => _currentIndex != 2; // Hide drawer on Add page (index 2)
 
   @override
   Widget build(BuildContext context) {
@@ -71,16 +90,7 @@ class _BottomBarState extends State<BottomBar> {
               fontWeight: FontWeight.w600,
             ),
             iconTheme: const IconThemeData(color: Colors.white),
-            // Conditionally show back button instead of hamburger menu
-            leading: _shouldShowDrawer 
-                ? null // Show default hamburger menu
-                : IconButton(
-                    icon: const Icon(Icons.arrow_back, color: Colors.white),
-                    onPressed: () => _onTabTapped(0), // Go back to home
-                  ),
-            automaticallyImplyLeading: _shouldShowDrawer, // Only show hamburger if drawer is enabled
-            // Hide profile picture on Add page
-            actions: _shouldShowDrawer ? [
+            actions: [
               Padding(
                 padding: const EdgeInsets.only(right: 16.0),
                 child: GestureDetector(
@@ -104,19 +114,26 @@ class _BottomBarState extends State<BottomBar> {
                   ),
                 ),
               ),
-            ] : null,
+            ],
           ),
 
-          // Only show drawer when not on Add page
-          drawer: _shouldShowDrawer ? SideBar(onNavigate: _onTabTapped) : null,
-          drawerEnableOpenDragGesture: _shouldShowDrawer, // Disable swipe gesture on Add page
+          drawer: SideBar(onNavigate: (index) {
+            // Map indices for sidebar navigation
+            if (index < 2) {
+              _onTabTapped(index);
+            } else if (index == 2) {
+              _onTabTapped(2); // Add button
+            } else {
+              _onTabTapped(index + 1); // Tools and Notes
+            }
+          }),
 
           body: Stack(
             children: [
               // Main content with bottom padding
               Positioned.fill(
                 child: Padding(
-                  padding: EdgeInsets.only(bottom: _shouldShowDrawer ? 36 : 0),
+                  padding: const EdgeInsets.only(bottom: 36),
                   child: AnimatedSwitcher(
                     duration: const Duration(milliseconds: 300),
                     transitionBuilder: (Widget child, Animation<double> animation) {
@@ -137,52 +154,50 @@ class _BottomBarState extends State<BottomBar> {
                 ),
               ),
               
-              // Fixed Bottom Navigation Bar with absolute positioning - Hide on Add page
-              if (_shouldShowDrawer) ...[
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  height: 72,
-                  child: IgnorePointer(
-                    ignoring: false,
-                    child: Container(
-                      color: kDarkSurface,
-                      child: Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: Container(
-                          height: 60,
-                          color: kDarkSurface,
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceAround,
-                            children: <Widget>[
-                              _buildTabItem(icon: Icons.home, index: 0, label: 'Home'),
-                              _buildTabItem(icon: Icons.search, index: 1, label: 'Search'),
-                              _buildCenterLabel(index: 2, label: 'Add'),
-                              _buildTabItem(icon: Icons.build, index: 3, label: 'Tools'),
-                              _buildTabItem(icon: Icons.note, index: 4, label: 'Notes'),
-                            ],
-                          ),
+              // Fixed Bottom Navigation Bar with absolute positioning
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                height: 72,
+                child: IgnorePointer(
+                  ignoring: false,
+                  child: Container(
+                    color: kDarkSurface,
+                    child: Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Container(
+                        height: 60,
+                        color: kDarkSurface,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceAround,
+                          children: <Widget>[
+                            _buildTabItem(icon: Icons.home, index: 0, label: 'Home'),
+                            _buildTabItem(icon: Icons.search, index: 1, label: 'Search'),
+                            _buildCenterLabel(index: 2, label: 'Add'),
+                            _buildTabItem(icon: Icons.build, index: 3, label: 'Tools'),
+                            _buildTabItem(icon: Icons.note, index: 4, label: 'Notes'),
+                          ],
                         ),
                       ),
                     ),
                   ),
                 ),
-                
-                // Fixed Floating Action Button with absolute positioning
-                Positioned(
-                  left: screenWidth / 2 - 28,
-                  bottom: 48,
-                  child: IgnorePointer(
-                    ignoring: false,
-                    child: FloatingActionButton(
-                      backgroundColor: kPrimaryColor,
-                      onPressed: () => _onTabTapped(2),
-                      child: const Icon(Icons.add, color: Colors.white),
-                    ),
+              ),
+              
+              // Fixed Floating Action Button with absolute positioning
+              Positioned(
+                left: screenWidth / 2 - 28,
+                bottom: 48,
+                child: IgnorePointer(
+                  ignoring: false,
+                  child: FloatingActionButton(
+                    backgroundColor: kPrimaryColor,
+                    onPressed: () => _onTabTapped(2),
+                    child: const Icon(Icons.add, color: Colors.white),
                   ),
                 ),
-              ],
+              ),
             ],
           ),
         ),
@@ -192,9 +207,13 @@ class _BottomBarState extends State<BottomBar> {
 
   String _getPageTitle() {
     switch (_currentIndex) {
+      case 0:
+        return ''; // Home
+      case 1:
+        return ''; // Search
       case 2:
-        return 'Add Note';
-      case 4:
+        return ''; // Tools
+      case 3:
         return 'My Notes';
       default:
         return '';
@@ -206,7 +225,19 @@ class _BottomBarState extends State<BottomBar> {
     required int index,
     required String label,
   }) {
-    final bool isSelected = _currentIndex == index;
+    // Map bottom bar index to page index for selection highlight
+    // Bottom bar: 0=Home, 1=Search, 2=Add, 3=Tools, 4=Notes
+    // Pages: 0=Home, 1=Search, 2=Tools, 3=Notes
+    int pageIndex;
+    if (index < 2) {
+      pageIndex = index;
+    } else if (index == 2) {
+      pageIndex = -1; // Add button, never selected
+    } else {
+      pageIndex = index - 1;
+    }
+    
+    final bool isSelected = _currentIndex == pageIndex;
 
     return GestureDetector(
       onTap: () => _onTabTapped(index),
@@ -246,8 +277,6 @@ class _BottomBarState extends State<BottomBar> {
   }
 
   Widget _buildCenterLabel({required int index, required String label}) {
-    final bool isSelected = _currentIndex == index;
-
     return GestureDetector(
       onTap: () => _onTabTapped(index),
       child: SizedBox(
@@ -258,9 +287,9 @@ class _BottomBarState extends State<BottomBar> {
             const SizedBox(height: 28),
             Text(
               label,
-              style: TextStyle(
+              style: const TextStyle(
                 fontSize: 12,
-                color: isSelected ? kPrimaryColor : Colors.grey,
+                color: Colors.grey,
               ),
             ),
           ],
