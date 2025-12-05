@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../side/favorites.dart';
 import 'package:nexnote/file_opener.dart';
+import 'add.dart';
 
 const kPrimaryColor = Color(0xFF6366F1);
 const kDarkSurface = Color(0xFF1C1C1E);
@@ -62,7 +63,7 @@ class _NotesPageState extends State<NotesPage> {
           .map((fav) => fav['note_id'] as String)
           .toSet();
 
-      // Add is_favorite flag to notes - FIX THE CASTING
+      // Add is_favorite flag to notes
       final notesWithFavorites = (notesResponse as List).map((note) {
         final noteMap = Map<String, dynamic>.from(note as Map);
         return {
@@ -133,7 +134,6 @@ class _NotesPageState extends State<NotesPage> {
   String _getTimeAgo(String? timestamp) {
     if (timestamp == null) return 'Unknown';
     
-    // Supabase returns UTC timestamps without 'Z', so we need to parse as UTC explicitly
     final dateTime = DateTime.parse(timestamp + 'Z').toLocal();
     final now = DateTime.now();
     final difference = now.difference(dateTime);
@@ -205,7 +205,11 @@ class _NotesPageState extends State<NotesPage> {
                                     color: kPrimaryColor,
                                     icon: Icons.add,
                                     onTap: () {
-                                      // Navigate to add note (handled by bottom nav)
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                            builder: (context) => const AddNotePage()),
+                                      ).then((_) => _loadNotes());
                                     },
                                   ),
                                 ),
@@ -317,6 +321,7 @@ class _NotesPageState extends State<NotesPage> {
                                     child: NoteItem(
                                       noteId: note['id'],
                                       title: note['title'] ?? 'Untitled',
+                                      description: note['description'],
                                       subtitle: 'Last edited ${_getTimeAgo(note['updated_at'])}',
                                       fileUrl: note['file_url'],
                                       fileType: note['file_type'],
@@ -422,6 +427,7 @@ class _AnimatedActionButtonState extends State<_AnimatedActionButton>
 class NoteItem extends StatefulWidget {
   final String noteId;
   final String title;
+  final String? description;
   final String subtitle;
   final String fileUrl;
   final String? fileType;
@@ -434,6 +440,7 @@ class NoteItem extends StatefulWidget {
   const NoteItem({
     required this.noteId,
     required this.title,
+    this.description,
     required this.subtitle,
     required this.fileUrl,
     required this.fileType,
@@ -506,14 +513,12 @@ class _NoteItemState extends State<NoteItem>
 
     try {
       if (isFavorite) {
-        // Remove from favorites
         await supabase
             .from('favorites')
             .delete()
             .eq('user_id', user.id)
             .eq('note_id', widget.noteId);
       } else {
-        // Add to favorites
         await supabase.from('favorites').insert({
           'user_id': user.id,
           'note_id': widget.noteId,
@@ -524,8 +529,6 @@ class _NoteItemState extends State<NoteItem>
       setState(() {
         isFavorite = !isFavorite;
       });
-
-      // Don't refresh the entire page, just update the state locally
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -535,7 +538,9 @@ class _NoteItemState extends State<NoteItem>
     }
   }
 
-  void _showEditTagsDialog(BuildContext context) {
+  void _showEditDialog(BuildContext context) {
+    final TextEditingController titleController = TextEditingController(text: widget.title);
+    final TextEditingController descController = TextEditingController(text: widget.description ?? '');
     final TextEditingController tagController = TextEditingController();
     List<String> editableTags = List<String>.from(widget.tags);
 
@@ -548,7 +553,7 @@ class _NoteItemState extends State<NoteItem>
             borderRadius: BorderRadius.circular(16),
           ),
           title: const Text(
-            'Edit Tags',
+            'Edit Note',
             style: TextStyle(
               color: Colors.white,
               fontSize: 18,
@@ -560,7 +565,61 @@ class _NoteItemState extends State<NoteItem>
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Tag input
+                // Title input
+                const Text(
+                  'Title',
+                  style: TextStyle(color: Colors.grey, fontSize: 13),
+                ),
+                const SizedBox(height: 6),
+                Container(
+                  decoration: BoxDecoration(
+                    color: kDarkSurface,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: TextField(
+                    controller: titleController,
+                    style: const TextStyle(color: Colors.white, fontSize: 15),
+                    decoration: const InputDecoration(
+                      hintText: 'Enter title...',
+                      hintStyle: TextStyle(color: Colors.grey, fontSize: 14),
+                      border: InputBorder.none,
+                      contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                
+                // Description input
+                const Text(
+                  'Description',
+                  style: TextStyle(color: Colors.grey, fontSize: 13),
+                ),
+                const SizedBox(height: 6),
+                Container(
+                  decoration: BoxDecoration(
+                    color: kDarkSurface,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: TextField(
+                    controller: descController,
+                    style: const TextStyle(color: Colors.white, fontSize: 15),
+                    maxLines: 3,
+                    decoration: const InputDecoration(
+                      hintText: 'Add a description...',
+                      hintStyle: TextStyle(color: Colors.grey, fontSize: 14),
+                      border: InputBorder.none,
+                      contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                
+                // Tags section
+                const Text(
+                  'Tags',
+                  style: TextStyle(color: Colors.grey, fontSize: 13),
+                ),
+                const SizedBox(height: 6),
                 Row(
                   children: [
                     Expanded(
@@ -613,7 +672,8 @@ class _NoteItemState extends State<NoteItem>
                     ),
                   ],
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
+                
                 // Display tags
                 if (editableTags.isNotEmpty)
                   Wrap(
@@ -655,14 +715,6 @@ class _NoteItemState extends State<NoteItem>
                         ),
                       );
                     }).toList(),
-                  )
-                else
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    child: Text(
-                      'No tags yet',
-                      style: TextStyle(color: Colors.grey[500], fontSize: 14),
-                    ),
                   ),
               ],
             ),
@@ -677,19 +729,22 @@ class _NoteItemState extends State<NoteItem>
             ),
             ElevatedButton(
               onPressed: () async {
-                // Update tags in database
                 try {
                   final supabase = Supabase.instance.client;
                   await supabase
                       .from('notes')
-                      .update({'tags': editableTags})
+                      .update({
+                        'title': titleController.text.trim(),
+                        'description': descController.text.trim().isEmpty ? null : descController.text.trim(),
+                        'tags': editableTags,
+                      })
                       .eq('id', widget.noteId);
                   
                   if (context.mounted) {
                     Navigator.pop(context);
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
-                        content: Text('Tags updated successfully'),
+                        content: Text('Note updated successfully'),
                         backgroundColor: Colors.green,
                       ),
                     );
@@ -699,7 +754,7 @@ class _NoteItemState extends State<NoteItem>
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: Text('Error updating tags: $e'),
+                        content: Text('Error updating note: $e'),
                         backgroundColor: Colors.red,
                       ),
                     );
@@ -735,9 +790,9 @@ class _NoteItemState extends State<NoteItem>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _buildOption(context, Icons.edit, "Edit tags", () {
+            _buildOption(context, Icons.edit, "Edit note", () {
               Navigator.pop(context);
-              _showEditTagsDialog(context);
+              _showEditDialog(context);
             }),
             _buildOption(context, Icons.download, "Download", () {
               // TODO: Implement download
