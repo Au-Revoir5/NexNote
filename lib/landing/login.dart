@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../config/supabase_config.dart';
 import '../navigation/bottom_bar.dart';
 import 'signup.dart';
@@ -16,6 +18,7 @@ class _LoginPageState extends State<LoginPage> {
   final TextEditingController _passwordController = TextEditingController();
 
   bool _isLoading = false;
+  bool _isGoogleLoading = false;
   String? _errorMessage;
 
   @override
@@ -25,7 +28,7 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
-  // Supabase login
+  // Supabase email/password login
   Future<void> _handleLogin() async {
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
@@ -64,6 +67,86 @@ class _LoginPageState extends State<LoginPage> {
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  // Google Sign In
+  Future<void> _handleGoogleSignIn() async {
+    setState(() {
+      _isGoogleLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      // Initialize Google Sign In with server client ID
+      final GoogleSignIn googleSignIn = GoogleSignIn(
+        scopes: ['email', 'profile'],
+        serverClientId: '633309418648-4vlnkr22524vv2r8dn82n3mkql6pcq8v.apps.googleusercontent.com',
+      );
+
+      // Sign out first to ensure clean state
+      await googleSignIn.signOut();
+
+      // Trigger Google Sign In flow
+      final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
+
+      if (googleUser == null) {
+        // User cancelled the sign-in
+        setState(() => _isGoogleLoading = false);
+        return;
+      }
+
+      // Obtain auth details
+      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+
+      // Get tokens
+      final String? accessToken = googleAuth.accessToken;
+      final String? idToken = googleAuth.idToken;
+
+      if (accessToken == null) {
+        throw Exception('Failed to get access token from Google');
+      }
+      
+      if (idToken == null) {
+        throw Exception('Failed to get ID token from Google');
+      }
+
+      print('Attempting Supabase sign in...');
+
+      // Sign in to Supabase with Google tokens
+      final response = await Supabase.instance.client.auth.signInWithIdToken(
+        provider: OAuthProvider.google,
+        idToken: idToken,
+        accessToken: accessToken,
+      );
+
+      print('Supabase response: ${response.user?.email}');
+
+      if (!mounted) return;
+
+      if (response.user != null) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => const BottomBar()),
+          (route) => false,
+        );
+      } else {
+        setState(() => _errorMessage = "Google login failed. Please try again.");
+      }
+    } catch (e, stackTrace) {
+      print('Google Sign In Error: $e');
+      print('Stack trace: $stackTrace');
+      setState(() {
+        if (e.toString().contains('PlatformException')) {
+          _errorMessage = "Google Sign In configuration error. Please check SHA-1 fingerprint.";
+        } else {
+          _errorMessage = "Google login failed: ${e.toString()}";
+        }
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _isGoogleLoading = false);
       }
     }
   }
@@ -257,33 +340,32 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                   const SizedBox(height: 20),
 
+                  // Google Sign In Button
                   OutlinedButton.icon(
-                    onPressed: () {
-                      // TODO: Implement Google Sign In with Supabase
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("Google login coming soon")),
-                      );
-                    },
-                    icon: const Icon(Icons.login, color: Colors.red),
-                    label: const Text(
-                      'Login with Google',
-                      style: TextStyle(color: Colors.black),
+                    onPressed: _isGoogleLoading ? null : _handleGoogleSignIn,
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                     ),
-                  ),
-
-                  const SizedBox(height: 10),
-
-                  OutlinedButton.icon(
-                    onPressed: () {
-                      // TODO: Implement Apple Sign In with Supabase
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("Apple login coming soon")),
-                      );
-                    },
-                    icon: const Icon(Icons.apple, color: Colors.black),
-                    label: const Text(
-                      'Login with Apple',
-                      style: TextStyle(color: Colors.black),
+                    icon: _isGoogleLoading
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.red,
+                            ),
+                          )
+                        : Image.network(
+                            'https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg',
+                            width: 20,
+                            height: 20,
+                          ),
+                    label: Text(
+                      _isGoogleLoading ? 'Signing in...' : 'Continue with Google',
+                      style: const TextStyle(color: Colors.black, fontSize: 15),
                     ),
                   ),
 

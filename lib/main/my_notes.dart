@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../side/favorites.dart';
+import 'package:nexnote/file_opener.dart';
 
 const kPrimaryColor = Color(0xFF6366F1);
 const kDarkSurface = Color(0xFF1C1C1E);
@@ -132,7 +133,8 @@ class _NotesPageState extends State<NotesPage> {
   String _getTimeAgo(String? timestamp) {
     if (timestamp == null) return 'Unknown';
     
-    final dateTime = DateTime.parse(timestamp);
+    // Supabase returns UTC timestamps without 'Z', so we need to parse as UTC explicitly
+    final dateTime = DateTime.parse(timestamp + 'Z').toLocal();
     final now = DateTime.now();
     final difference = now.difference(dateTime);
 
@@ -304,23 +306,31 @@ class _NotesPageState extends State<NotesPage> {
                                 itemCount: _filteredNotes.length,
                                 itemBuilder: (context, index) {
                                   final note = _filteredNotes[index];
-                                  return NoteItem(
-                                    noteId: note['id'],
-                                    title: note['title'] ?? 'Untitled',
-                                    subtitle: 'Last edited ${_getTimeAgo(note['updated_at'])}',
-                                    fileUrl: note['file_url'],
-                                    fileType: note['file_type'],
-                                    tags: note['tags'] != null 
-                                        ? List<String>.from(note['tags']) 
-                                        : [],
-                                    isPublic: note['is_public'] ?? false,
-                                    isFavorite: note['is_favorite'] ?? false,
-                                    onDelete: () => _deleteNote(note['id'], note['file_url']),
-                                    onRefresh: _loadNotes,
+                                  return GestureDetector(
+                                    onTap: () {
+                                      FileOpener.openFile(
+                                        context,
+                                        note['file_url'],
+                                        '${note['title']}.${note['file_type']}',
+                                      );
+                                    },
+                                    child: NoteItem(
+                                      noteId: note['id'],
+                                      title: note['title'] ?? 'Untitled',
+                                      subtitle: 'Last edited ${_getTimeAgo(note['updated_at'])}',
+                                      fileUrl: note['file_url'],
+                                      fileType: note['file_type'],
+                                      tags: note['tags'] != null 
+                                          ? List<String>.from(note['tags']) 
+                                          : [],
+                                      isPublic: note['is_public'] ?? false,
+                                      isFavorite: note['is_favorite'] ?? false,
+                                      onDelete: () => _deleteNote(note['id'], note['file_url']),
+                                      onRefresh: _loadNotes,
+                                    ),
                                   );
                                 },
                               ),
-
                             const SizedBox(height: 100),
                           ],
                         ),
