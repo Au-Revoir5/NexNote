@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:nexnote/file_opener.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 const kPrimaryColor = Color(0xFF6366F1);
@@ -122,7 +123,8 @@ class _FavoritesPageState extends State<FavoritesPage> {
   String _getTimeAgo(String? timestamp) {
     if (timestamp == null) return 'Unknown';
     
-    final dateTime = DateTime.parse(timestamp);
+    // Supabase returns UTC timestamps without 'Z', so we need to parse as UTC explicitly
+    final dateTime = DateTime.parse(timestamp + 'Z').toLocal();
     final now = DateTime.now();
     final difference = now.difference(dateTime);
 
@@ -309,7 +311,11 @@ class _FavoritesPageState extends State<FavoritesPage> {
           note: note,
           timeAgo: _getTimeAgo(note['updated_at']),
           onTap: () {
-            print("Tapped ${note['title']}");
+            FileOpener.openFile(
+              context,
+              note['file_url'],
+              '${note['title']}.${note['file_type']}',
+            );
           },
           onMenuTap: () => _showItemMenu(note),
         );
@@ -327,7 +333,11 @@ class _FavoritesPageState extends State<FavoritesPage> {
           note: note,
           timeAgo: _getTimeAgo(note['updated_at']),
           onTap: () {
-            print("Tapped ${note['title']}");
+            FileOpener.openFile(
+              context,
+              note['file_url'],
+              '${note['title']}.${note['file_type']}',
+            );
           },
           onMenuTap: () => _showItemMenu(note),
           textScale: textScale,

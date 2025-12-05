@@ -34,6 +34,11 @@ dependencies:
   shared_preferences: ^2.3.2
   supabase_flutter: ^2.5.2
   flutter_dotenv: ^6.0.0
+  google_sign_in: ^6.1.5
+  url_launcher: ^6.2.1
+  open_filex: ^4.3.4
+  path_provider: ^2.1.1
+  http: ^1.1.0
 
 
   # The following adds the Cupertino Icons font to your application.
