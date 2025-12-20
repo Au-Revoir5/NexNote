@@ -122,14 +122,16 @@ class _AddNotePageState extends State<AddNotePage> {
       // Insert note record into DB
       await supabase.from('notes').insert({
         'user_id': user.id,
+        'publisher_id': user.id,
         'title': _titleController.text.trim(),
-        'description': _descriptionController.text.trim().isEmpty 
-            ? null 
+        'description': _descriptionController.text.trim().isEmpty
+            ? null
             : _descriptionController.text.trim(),
         'file_url': fileUrl,
         'file_type': _fileType,
         'is_public': _isPublic,
         'tags': _tags,
+        'published_at': _isPublic ? DateTime.now().toIso8601String() : null,
       });
 
       if (mounted) {

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../services/supabase_config.dart';
+import '../backend/supabase_config.dart';
 import '../navigation/bottom_bar.dart';
 
 class SignUpPage extends StatefulWidget {
@@ -28,77 +28,58 @@ class _SignUpPageState extends State<SignUpPage> {
 
   // Supabase sign up with profile metadata
   Future<void> _signUp() async {
-  final username = _usernameController.text.trim();
-  final email = _emailController.text.trim();
-  final password = _passwordController.text.trim();
+    final username = _usernameController.text.trim();
+    final email = _emailController.text.trim();
+    final password = _passwordController.text.trim();
 
-  if (username.isEmpty || email.isEmpty || password.isEmpty) {
-    setState(() => _errorMessage = "Please fill in all fields");
-    return;
-  }
-
-  setState(() {
-    _isLoading = true;
-    _errorMessage = null;
-  });
-
-  try {
-    // 1️⃣ Create user with metadata
-    final response = await SupabaseConfig.signUp(
-      email: email,
-      password: password,
-      metadata: {
-        'username': username,
-        'full_name': username, // optional
-      },
-    );
-
-    final user = response.user;
-    if (user == null) {
-      setState(() => _errorMessage = "Sign up failed.");
+    if (username.isEmpty || email.isEmpty || password.isEmpty) {
+      setState(() => _errorMessage = "Please fill in all fields");
       return;
     }
 
-    // 2️⃣ Ensure no duplicate profile row
-    final existingProfile = await SupabaseConfig.client
-        .from('profiles')
-        .select()
-        .eq('id', user.id)
-        .maybeSingle();
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
 
-    if (existingProfile == null) {
-      // 3️⃣ Insert profile (only if not exists)
-      await SupabaseConfig.client.from('profiles').insert({
-        'id': user.id,
-        'email': email,
-        'username': username,
-        'full_name': username,
-      });
-    }
-
-    // 4️⃣ If email verification is required
-    if (response.session == null) {
-      _showSuccessDialog(
-        title: 'Verification Email Sent',
-        message:
-            'Please verify your email before logging in.',
+    try {
+      final authResponse = await SupabaseConfig.client.auth.signUp(
+        email: email,
+        password: password,
+        data: {
+          'username': username,
+          'full_name': username,
+        },
       );
-    } else {
-      if (!mounted) return;
 
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (_) => const BottomBar()),
-        (_) => false,
-      );
+      final user = authResponse.user;
+
+      if (user == null) {
+        throw Exception("Sign up failed");
+      }
+
+      // ⚠️ DO NOT insert profile manually here
+      // Let database trigger or RLS handle it
+
+      if (authResponse.session == null) {
+        _showSuccessDialog(
+          title: 'Verification Email Sent',
+          message: 'Please verify your email before logging in.',
+        );
+      } else {
+        if (!mounted) return;
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => const BottomBar()),
+          (_) => false,
+        );
+      }
+    } catch (e) {
+      setState(() => _errorMessage = _parseErrorMessage(e.toString()));
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
-  } catch (e) {
-    setState(() => _errorMessage = _parseErrorMessage(e.toString()));
-  } finally {
-    if (mounted) setState(() => _isLoading = false);
   }
-}
-
 
   // Parse error messages for better UX
   String _parseErrorMessage(String error) {

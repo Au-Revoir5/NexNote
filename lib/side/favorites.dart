@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:nexnote/file_opener.dart';
+import 'package:nexnote/backend/file_opener.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../backend/note_thumbnail.dart';
+import '../backend/note_thumbnail_cache.dart';
+import '../backend/note_thumbnail_generator.dart';
+import 'dart:typed_data';
 
 const kPrimaryColor = Color(0xFF6366F1);
 const kDarkSurface = Color(0xFF1C1C1E);
@@ -555,42 +559,13 @@ class _FavoriteGridItemWidgetState extends State<FavoriteGridItemWidget> {
   }
 
   Widget _buildPreview() {
-    final fileType = widget.note['file_type']?.toLowerCase();
-
-    if (fileType == 'pdf') {
-      return Container(
-        color: Colors.red[300]!.withOpacity(0.2),
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.picture_as_pdf, color: Colors.red[300], size: 36),
-              const SizedBox(height: 4),
-              Text('PDF', style: TextStyle(color: Colors.red[300], fontSize: 12, fontWeight: FontWeight.w600)),
-            ],
-          ),
-        ),
-      );
-    }
-
-    if (fileType == 'docx') {
-      return Container(
-        color: Colors.blue[300]!.withOpacity(0.2),
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.description, color: Colors.blue[300], size: 36),
-              const SizedBox(height: 4),
-              Text('DOCX', style: TextStyle(color: Colors.blue[300], fontSize: 12, fontWeight: FontWeight.w600)),
-            ],
-          ),
-        ),
-      );
-    }
-
-    return Center(child: Icon(_getIcon(), color: _getColor(), size: 36));
+    return NoteThumbnailWithCache(
+      noteId: widget.note['id'],
+      fileUrl: widget.note['file_url'],
+      fileType: widget.note['file_type'],
+    );
   }
+
 
   Color _getColor() {
     final fileType = widget.note['file_type']?.toLowerCase();
@@ -704,5 +679,75 @@ class FavoriteItemWidget extends StatelessWidget {
       default:
         return Icons.insert_drive_file;
     }
+  }
+}
+
+class NoteThumbnailWithCache extends StatefulWidget {
+  final String noteId;
+  final String fileUrl;
+  final String fileType;
+
+  const NoteThumbnailWithCache({
+    super.key,
+    required this.noteId,
+    required this.fileUrl,
+    required this.fileType,
+  });
+
+  @override
+  State<NoteThumbnailWithCache> createState() =>
+      _NoteThumbnailWithCacheState();
+}
+
+class _NoteThumbnailWithCacheState extends State<NoteThumbnailWithCache> {
+  Uint8List? _pdf;
+  String? _docx;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    // 1️⃣ cache first
+    _pdf = NoteThumbnailCache.getPdf(widget.noteId);
+    _docx = NoteThumbnailCache.getDocx(widget.noteId);
+
+    if (_pdf != null || _docx != null) {
+      if (mounted) setState(() {});
+      return;
+    }
+
+    try {
+      if (widget.fileType == 'pdf') {
+        final bytes = await generatePdfThumbnail(widget.fileUrl);
+        if (!mounted) return;
+
+        NoteThumbnailCache.setPdf(widget.noteId, bytes);
+        _pdf = bytes;
+      } else if (widget.fileType == 'docx') {
+        final text = await generateDocxPreview(widget.fileUrl);
+        if (!mounted) return;
+
+        NoteThumbnailCache.setDocx(widget.noteId, text);
+        _docx = text;
+      }
+
+      if (mounted) setState(() {});
+    } catch (e) {
+      debugPrint('Thumbnail load error: $e');
+    }
+  }
+
+
+  @override
+  Widget build(BuildContext context) {
+    return NoteThumbnail(
+      noteId: widget.noteId,
+      fileType: widget.fileType,
+      pdfThumbnail: _pdf,
+      docxPreviewText: _docx,
+    );
   }
 }
