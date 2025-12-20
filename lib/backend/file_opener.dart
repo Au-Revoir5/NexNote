@@ -22,13 +22,21 @@ class FileOpener {
       final uri = Uri.parse(fileUrl);
       final pathSegments = uri.pathSegments;
       
-      // Extract file path from URL
-      final notesIndex = pathSegments.indexOf('notes');
-      if (notesIndex == -1) {
-        throw Exception('Invalid file URL');
+      // Supabase storage URLs:
+      // /storage/v1/object/public/<bucket>/<path>
+      // /storage/v1/object/sign/<bucket>/<path>
+
+      final publicIndex = pathSegments.indexOf('public');
+      final signIndex = pathSegments.indexOf('sign');
+
+      final baseIndex = publicIndex != -1 ? publicIndex : signIndex;
+
+      if (baseIndex == -1 || baseIndex + 1 >= pathSegments.length) {
+        throw Exception('Invalid Supabase file URL');
       }
-      
-      final filePath = pathSegments.sublist(notesIndex + 1).join('/');
+
+      final filePath = pathSegments.sublist(baseIndex + 2).join('/');
+
       
       // Create signed URL
       final signedUrl = await supabase.storage

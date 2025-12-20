@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../side/favorites.dart';
-import 'package:nexnote/file_opener.dart';
+import 'package:nexnote/backend/file_opener.dart';
 import 'add.dart';
+import 'package:flutter/services.dart';
 
 const kPrimaryColor = Color(0xFF6366F1);
 const kDarkSurface = Color(0xFF1C1C1E);
@@ -105,16 +106,35 @@ class _NotesPageState extends State<NotesPage> {
     });
   }
 
-  Future<void> _deleteNote(String noteId, String fileUrl) async {
+ Future<void> _deleteNote(String noteId, String fileUrl) async {
     try {
-      // Delete file from storage
-      final fileName = fileUrl.split('/').last;
-      await _supabase.storage.from('notes').remove([fileName]);
+      final supabase = Supabase.instance.client;
 
-      // Delete note from database
-      await _supabase.from('notes').delete().eq('id', noteId);
+      // Extract full storage path from public URL
+      final uri = Uri.parse(fileUrl);
+      final segments = uri.pathSegments;
 
-      // Reload notes
+      // Example URL:
+      // /storage/v1/object/public/notes/<user_id>/<filename>
+      final bucketIndex = segments.indexOf('notes');
+      if (bucketIndex == -1 || bucketIndex + 1 >= segments.length) {
+        throw Exception('Invalid file URL');
+      }
+
+      final storagePath = segments.sublist(bucketIndex + 1).join('/');
+
+      // Delete file from bucket
+      await supabase.storage
+          .from('notes')
+          .remove([storagePath]);
+
+      // Delete row from public.notes
+      await supabase
+          .from('notes')
+          .delete()
+          .eq('id', noteId);
+
+      // Refresh UI
       await _loadNotes();
 
       if (mounted) {
@@ -130,6 +150,8 @@ class _NotesPageState extends State<NotesPage> {
       }
     }
   }
+
+
 
   String _getTimeAgo(String? timestamp) {
     if (timestamp == null) return 'Unknown';
@@ -505,6 +527,7 @@ class _NoteItemState extends State<NoteItem>
     super.dispose();
   }
 
+  
   Future<void> _toggleFavorite() async {
     final supabase = Supabase.instance.client;
     final user = supabase.auth.currentUser;
@@ -530,11 +553,10 @@ class _NoteItemState extends State<NoteItem>
         isFavorite = !isFavorite;
       });
     } catch (e) {
-      if (mounted) {
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error updating favorite: $e')),
-        );
-      }
+        SnackBar(content: Text('Error updating favorite: $e')),
+      );
     }
   }
 
@@ -740,7 +762,7 @@ class _NoteItemState extends State<NoteItem>
                       })
                       .eq('id', widget.noteId);
                   
-                  if (context.mounted) {
+                  if (!mounted) return;
                     Navigator.pop(context);
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
@@ -749,16 +771,14 @@ class _NoteItemState extends State<NoteItem>
                       ),
                     );
                     widget.onRefresh();
-                  }
                 } catch (e) {
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Error updating note: $e'),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
-                  }
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Error updating note: $e'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
                 }
               },
               style: ElevatedButton.styleFrom(
@@ -794,17 +814,40 @@ class _NoteItemState extends State<NoteItem>
               Navigator.pop(context);
               _showEditDialog(context);
             }),
-            _buildOption(context, Icons.download, "Download", () {
-              // TODO: Implement download
-              Navigator.pop(context);
-            }),
             _buildOption(context, Icons.share, "Share", () {
               // TODO: Implement share
               Navigator.pop(context);
             }),
-            _buildOption(context, Icons.link, "Copy link", () {
-              // TODO: Implement copy link
+            _buildOption(context, Icons.link, "Copy link", () async {
               Navigator.pop(context);
+
+              try {
+                final supabase = Supabase.instance.client;
+
+                final uri = Uri.parse(widget.fileUrl);
+                final segments = uri.pathSegments;
+
+                final bucketIndex = segments.indexOf('notes');
+                final storagePath = segments.sublist(bucketIndex + 1).join('/');
+
+                final signedUrl = await supabase.storage
+                    .from('notes')
+                    .createSignedUrl(storagePath, 60 * 60); // 1 hour
+
+                await Clipboard.setData(
+                  ClipboardData(text: signedUrl),
+                );
+
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Secure link copied (1 hour valid)')),
+                );
+              } catch (e) {
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Failed to copy link: $e')),
+                );
+              }
             }),
             const Divider(color: Colors.grey),
             _buildOption(context, Icons.delete, "Delete", () {

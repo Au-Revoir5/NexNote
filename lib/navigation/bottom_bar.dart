@@ -26,7 +26,7 @@ class _BottomBarState extends State<BottomBar> {
   static final List<Widget> _pages = <Widget>[
     HomePage(),
     SearchPage(),
-    EnhanceNotePage(),
+    EnhanceCompareCombinePage(),
     NotesPage(),
   ];
 

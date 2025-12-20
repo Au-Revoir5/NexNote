@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../services/supabase_config.dart';
+import '../backend/supabase_config.dart';
 import '../navigation/bottom_bar.dart';
 import 'signup.dart';
 

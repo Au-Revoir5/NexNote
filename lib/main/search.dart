@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:url_launcher/url_launcher.dart';
-import 'package:pdfx/pdfx.dart';
 import 'dart:typed_data';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
-import 'package:archive/archive.dart';
-import 'package:xml/xml.dart';
+import 'package:nexnote/side/preview.dart';
+import '../backend/note_thumbnail.dart';
+import '../backend/note_thumbnail_cache.dart';
+import '../backend/note_thumbnail_generator.dart';
 
 const kPrimaryColor = Color(0xFF6366F1);
 const kDarkSurface = Color(0xFF1C1C1E);
@@ -48,23 +46,44 @@ class _SearchPageState extends State<SearchPage> {
       });
 
       final response = await supabase
-          .from('notes')
-          .select('*, profiles(username, avatar_url)')
-          .eq('is_public', true)
-          .order('updated_at', ascending: false);
+        .from('notes')
+        .select('''
+        id,
+        title,
+        description,
+        file_url,
+        file_type,
+        tags,
+        created_at,
+        updated_at,
+        is_public,
+        profiles:publisher_id (
+          username,
+          avatar_url
+          )
+        ''')
+        .eq('is_public', true)
+        .order('updated_at', ascending: false);
+
 
       final fetchedNotes = (response as List).map((note) {
-        final username = note['profiles']?['username'] ?? 'Anonymous';
+        final isPublic = note['is_public'] == true;
+        final username = isPublic
+            ? (note['profiles']?['username'] ?? 'Anonymous')
+            : 'Anonymous';
+
         return NoteItem(
           id: note['id'],
           title: note['title'] ?? 'Untitled',
           author: 'Made by $username',
+          description: note['description'] ?? '', //
           fileUrl: note['file_url'],
           fileType: note['file_type'],
           tags: List<String>.from(note['tags'] ?? []),
           createdAt: DateTime.parse(note['created_at']),
           updatedAt: DateTime.parse(note['updated_at']),
         );
+
       }).toList();
 
       setState(() {
@@ -102,35 +121,6 @@ class _SearchPageState extends State<SearchPage> {
     });
   }
 
-  Future<void> _openFile(String fileUrl, String title) async {
-    try {
-      final uri = Uri.parse(fileUrl);
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(
-          uri,
-          mode: LaunchMode.externalApplication,
-        );
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Cannot open file'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error opening file: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
 
   void _sortNotes() {
     setState(() {
@@ -358,10 +348,19 @@ class _SearchPageState extends State<SearchPage> {
                                     itemBuilder: (context, index) {
                                       return NoteCard(
                                         note: filteredNotes[index],
-                                        onTap: () => _openFile(
-                                          filteredNotes[index].fileUrl,
-                                          filteredNotes[index].title,
-                                        ),
+                                        onTap: (pdfThumb, docxText, pdfBytes) {
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (_) => NotePreviewPage(
+                                                note: filteredNotes[index],
+                                                pdfThumbnail: pdfThumb,
+                                                docxPreviewText: docxText,
+                                                pdfBytes: pdfBytes,
+                                              ),
+                                            ),
+                                          );
+                                        },
                                       );
                                     },
                                   ),
@@ -382,6 +381,7 @@ class NoteItem {
   final String id;
   final String title;
   final String author;
+  final String description;
   final String fileUrl;
   final String fileType;
   final List<String> tags;
@@ -392,6 +392,7 @@ class NoteItem {
     required this.id,
     required this.title,
     required this.author,
+    required this.description,
     required this.fileUrl,
     required this.fileType,
     required this.tags,
@@ -415,7 +416,11 @@ class NoteItem {
 
 class NoteCard extends StatefulWidget {
   final NoteItem note;
-  final VoidCallback onTap;
+  final void Function(
+    Uint8List? pdfThumbnail,
+    String? docxPreviewText,
+    Uint8List? pdfBytes,
+  ) onTap;
 
   const NoteCard({
     super.key,
@@ -430,8 +435,10 @@ class NoteCard extends StatefulWidget {
 class _NoteCardState extends State<NoteCard> {
   final supabase = Supabase.instance.client;
   Uint8List? _thumbnailBytes;
+  Uint8List? _pdfBytes;
   String? _docxPreviewText;
   bool _isLoadingThumbnail = false;
+  // ignore: unused_field
   bool _thumbnailError = false;
 
   @override
@@ -441,223 +448,66 @@ class _NoteCardState extends State<NoteCard> {
   }
 
   Future<void> _generateThumbnail() async {
-    if (widget.note.fileType.toLowerCase() != 'pdf' &&
-        widget.note.fileType.toLowerCase() != 'docx') {
+    final type = widget.note.fileType.toLowerCase().trim();
+
+    final cachedPdf = NoteThumbnailCache.getPdf(widget.note.id);
+    final cachedDocx = NoteThumbnailCache.getDocx(widget.note.id);
+
+    if (cachedPdf != null || cachedDocx != null) {
+      setState(() {
+        _thumbnailBytes = cachedPdf;
+        _docxPreviewText = cachedDocx;
+        _isLoadingThumbnail = false;
+      });
       return;
     }
 
     setState(() {
       _isLoadingThumbnail = true;
-      _thumbnailError = false;
     });
 
     try {
-      if (widget.note.fileType.toLowerCase() == 'pdf') {
-        await _generatePdfThumbnail();
-      } else if (widget.note.fileType.toLowerCase() == 'docx') {
-        await _generateDocxThumbnail();
-      }
-    } catch (e) {
-      debugPrint('Error generating thumbnail: $e');
-      setState(() {
-        _thumbnailError = true;
-        _isLoadingThumbnail = false;
-      });
-    }
-  }
+      if (type == 'pdf') {
+        debugPrint('Generating PDF thumbnail for ${widget.note.id}');
+        final bytes = await generatePdfThumbnail(widget.note.fileUrl);
 
-  Future<void> _generateDocxThumbnail() async {
-    try {
-      debugPrint('Extracting DOCX content for: ${widget.note.fileUrl}');
-      
-      // Download DOCX file
-      Uint8List docxBytes;
-      
-      if (widget.note.fileUrl.contains('/storage/v1/object/')) {
-        try {
-          final uri = Uri.parse(widget.note.fileUrl);
-          final pathSegments = uri.pathSegments;
-          
-          final bucketIndex = pathSegments.indexOf('public') != -1 
-              ? pathSegments.indexOf('public') + 1 
-              : pathSegments.indexOf('sign') + 1;
-          
-          if (bucketIndex > 0 && bucketIndex < pathSegments.length) {
-            final bucket = pathSegments[bucketIndex];
-            final filePath = pathSegments.sublist(bucketIndex + 1).join('/');
-            
-            docxBytes = await supabase.storage.from(bucket).download(filePath);
-          } else {
-            throw Exception('Could not parse bucket/path from URL');
-          }
-        } catch (e) {
-          debugPrint('Supabase download failed: $e, trying HTTP fallback');
-          final response = await http.get(Uri.parse(widget.note.fileUrl));
-          if (response.statusCode != 200) {
-            throw Exception('HTTP download failed: ${response.statusCode}');
-          }
-          docxBytes = response.bodyBytes;
-        }
-      } else {
-        final response = await http.get(Uri.parse(widget.note.fileUrl));
-        if (response.statusCode != 200) {
-          throw Exception('HTTP download failed: ${response.statusCode}');
-        }
-        docxBytes = response.bodyBytes;
-      }
+        if (!mounted) return;
 
-      // Extract text from DOCX
-      final extractedText = await _extractTextFromDocx(docxBytes);
-      
+        NoteThumbnailCache.setPdf(widget.note.id, bytes);
+        setState(() {
+          _thumbnailBytes = bytes;
+          _isLoadingThumbnail = false;
+        });
+
+      } else if (type == 'docx') {
+        debugPrint('Generating DOCX preview for ${widget.note.id}');
+        final text = await generateDocxPreview(widget.note.fileUrl);
+
+        if (!mounted) return;
+
+        NoteThumbnailCache.setDocx(widget.note.id, text);
+
+        setState(() {
+          _docxPreviewText = text;
+          _isLoadingThumbnail = false;
+        });
+
+        // 🔥 FORCE repaint after async layout settles
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) setState(() {});
+        });
+      }
+      else {
+        debugPrint('Unsupported file type: $type');
+        setState(() {
+          _isLoadingThumbnail = false;
+        });
+      }
+    } catch (e, st) {
+      debugPrint('Thumbnail error: $e');
+      debugPrintStack(stackTrace: st);
       if (mounted) {
         setState(() {
-          _docxPreviewText = extractedText;
-          _isLoadingThumbnail = false;
-        });
-        debugPrint('DOCX text extracted successfully');
-      }
-    } catch (e, stackTrace) {
-      debugPrint('DOCX thumbnail error: $e');
-      debugPrint('Stack trace: $stackTrace');
-      if (mounted) {
-        setState(() {
-          _thumbnailError = true;
-          _isLoadingThumbnail = false;
-        });
-      }
-    }
-  }
-
-  Future<String> _extractTextFromDocx(Uint8List docxBytes) async {
-    try {
-      // DOCX is a ZIP archive, so we need to extract it
-      final archive = ZipDecoder().decodeBytes(docxBytes);
-      
-      // Find document.xml which contains the text
-      final documentXml = archive.firstWhere(
-        (file) => file.name == 'word/document.xml',
-      );
-      
-      // Read the XML content
-      final xmlContent = utf8.decode(documentXml.content as List<int>);
-      
-      // Parse XML
-      final document = XmlDocument.parse(xmlContent);
-      
-      // Extract text from all <w:t> elements (text nodes in Word XML)
-      final textNodes = document.findAllElements('w:t');
-      final textContent = textNodes.map((node) => node.innerText).join(' ');
-      
-      // Clean up and limit the text
-      final cleanedText = textContent
-          .replaceAll(RegExp(r'\s+'), ' ')
-          .trim();
-      
-      // Return first 500 characters for preview
-      return cleanedText.length > 500 
-          ? '${cleanedText.substring(0, 500)}...' 
-          : cleanedText;
-    } catch (e) {
-      debugPrint('Error extracting DOCX text: $e');
-      return '';
-    }
-  }
-
-  Future<void> _generatePdfThumbnail() async {
-    try {
-      debugPrint('Attempting to download PDF from: ${widget.note.fileUrl}');
-      
-      Uint8List pdfBytes;
-      
-      if (widget.note.fileUrl.contains('/storage/v1/object/')) {
-        try {
-          final uri = Uri.parse(widget.note.fileUrl);
-          final pathSegments = uri.pathSegments;
-          
-          final bucketIndex = pathSegments.indexOf('public') != -1 
-              ? pathSegments.indexOf('public') + 1 
-              : pathSegments.indexOf('sign') + 1;
-          
-          if (bucketIndex > 0 && bucketIndex < pathSegments.length) {
-            final bucket = pathSegments[bucketIndex];
-            final filePath = pathSegments.sublist(bucketIndex + 1).join('/');
-            
-            debugPrint('Bucket: $bucket, Path: $filePath');
-            
-            pdfBytes = await supabase.storage.from(bucket).download(filePath);
-            debugPrint('PDF downloaded via Supabase SDK, size: ${pdfBytes.length} bytes');
-          } else {
-            throw Exception('Could not parse bucket/path from URL');
-          }
-        } catch (e) {
-          debugPrint('Supabase download failed: $e, trying HTTP fallback');
-          final response = await http.get(Uri.parse(widget.note.fileUrl));
-          if (response.statusCode != 200) {
-            throw Exception('HTTP download failed: ${response.statusCode}');
-          }
-          pdfBytes = response.bodyBytes;
-        }
-      } else {
-        final response = await http.get(Uri.parse(widget.note.fileUrl));
-        if (response.statusCode != 200) {
-          throw Exception('HTTP download failed: ${response.statusCode}');
-        }
-        pdfBytes = response.bodyBytes;
-      }
-
-      if (pdfBytes.isEmpty) {
-        throw Exception('Downloaded PDF is empty');
-      }
-
-      debugPrint('PDF downloaded, size: ${pdfBytes.length} bytes');
-
-      final document = await PdfDocument.openData(pdfBytes);
-      debugPrint('PDF opened, pages: ${document.pagesCount}');
-      
-      if (document.pagesCount == 0) {
-        throw Exception('PDF has no pages');
-      }
-      
-      final page = await document.getPage(1);
-      debugPrint('Page loaded');
-      
-      final pageImage = await page.render(
-        width: page.width * 2,
-        height: page.height * 2,
-      );
-      
-      debugPrint('Page rendered');
-      
-      final imageBytes = pageImage?.bytes;
-      
-      if (imageBytes == null) {
-        await page.close();
-        throw Exception('Failed to render page image');
-      }
-      
-      debugPrint('Bytes extracted: ${imageBytes.length}');
-      
-      await page.close();
-
-      if (mounted && imageBytes.isNotEmpty) {
-        setState(() {
-          _thumbnailBytes = imageBytes;
-          _isLoadingThumbnail = false;
-        });
-        debugPrint('Thumbnail set successfully');
-      } else if (mounted) {
-        setState(() {
-          _thumbnailError = true;
-          _isLoadingThumbnail = false;
-        });
-        debugPrint('No image bytes available');
-      }
-    } catch (e, stackTrace) {
-      debugPrint('PDF thumbnail error: $e');
-      debugPrint('Stack trace: $stackTrace');
-      if (mounted) {
-        setState(() {
-          _thumbnailError = true;
           _isLoadingThumbnail = false;
         });
       }
@@ -667,7 +517,15 @@ class _NoteCardState extends State<NoteCard> {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: widget.onTap,
+      onTap: () {
+        if (_isLoadingThumbnail) return;
+
+        widget.onTap(
+          _thumbnailBytes,
+          _docxPreviewText,
+          _pdfBytes,
+        );
+      },
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white,
@@ -775,174 +633,11 @@ class _NoteCardState extends State<NoteCard> {
   }
 
   Widget _buildThumbnailWidget() {
-    if (_isLoadingThumbnail) {
-      return Container(
-        color: Colors.grey[200],
-        child: const Center(
-          child: CircularProgressIndicator(
-            color: kPrimaryColor,
-            strokeWidth: 2,
-          ),
-        ),
-      );
-    }
-
-    if (_thumbnailError) {
-      return _buildPlaceholder();
-    }
-
-    // Show PDF thumbnail
-    if (_thumbnailBytes != null) {
-      return Image.memory(
-        _thumbnailBytes!,
-        fit: BoxFit.cover,
-        width: double.infinity,
-        height: double.infinity,
-      );
-    }
-
-    // Show DOCX text preview
-    if (_docxPreviewText != null && _docxPreviewText!.isNotEmpty) {
-      return _buildDocxPreview();
-    }
-
-    return _buildPlaceholder();
-  }
-
-  Widget _buildDocxPreview() {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Colors.blue.shade50,
-            Colors.white,
-          ],
-        ),
-      ),
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Word icon
-          Row(
-            children: [
-              Icon(
-                Icons.description,
-                color: Colors.blue.shade700,
-                size: 24,
-              ),
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.blue.shade700,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: const Text(
-                  'DOCX',
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 1,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          // Text preview
-          Expanded(
-            child: SingleChildScrollView(
-              child: Text(
-                _docxPreviewText!,
-                style: TextStyle(
-                  fontSize: 10,
-                  color: Colors.grey.shade800,
-                  height: 1.4,
-                ),
-                maxLines: 15,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPlaceholder() {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: widget.note.fileType.toLowerCase() == 'pdf'
-            ? LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Colors.red.shade50,
-                  Colors.red.shade100,
-                ],
-              )
-            : LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Colors.blue.shade50,
-                  Colors.blue.shade100,
-                ],
-              ),
-      ),
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.1),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Icon(
-                widget.note.fileType.toLowerCase() == 'pdf' 
-                    ? Icons.picture_as_pdf
-                    : Icons.description,
-                size: 48,
-                color: widget.note.fileType.toLowerCase() == 'pdf'
-                    ? Colors.red.shade400
-                    : Colors.blue.shade400,
-              ),
-            ),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                widget.note.fileType.toUpperCase(),
-                style: TextStyle(
-                  fontSize: 12,
-                  color: widget.note.fileType.toLowerCase() == 'pdf'
-                      ? Colors.red.shade700
-                      : Colors.blue.shade700,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
+    return NoteThumbnail(
+      noteId: widget.note.id,
+      fileType: widget.note.fileType,
+      pdfThumbnail: _thumbnailBytes,
+      docxPreviewText: _docxPreviewText,
     );
   }
 }
