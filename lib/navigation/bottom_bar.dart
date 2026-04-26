@@ -22,41 +22,67 @@ class BottomBar extends StatefulWidget {
 
 class _BottomBarState extends State<BottomBar> {
   int _currentIndex = 0;
+  bool _hideAppBar = false;
+  bool _hideBottomBar = false;
+  bool _disableDrawer = false;
+  // ignore: unused_field
+  bool _pendingSearchFocus = false;
+  late final List<Widget> _pages;
 
-  static final List<Widget> _pages = <Widget>[
-    HomePage(),
-    SearchPage(),
-    EnhanceCompareCombinePage(),
-    NotesPage(),
-  ];
+  @override
+  void initState() {
+    super.initState();
 
-  void _onTabTapped(int index) {
+    _pages = [
+      HomePage(onTabRequest: _onTabTapped),
+      SearchPage(
+        key: SearchPage.searchKey,
+        autoFocus: false,
+        onSearchingChanged: (isSearching) {
+          setState(() {
+            _hideAppBar = isSearching;
+            _hideBottomBar = isSearching;
+            _disableDrawer = isSearching;
+          });
+        },
+      ),
+      EnhanceCompareCombinePage(),
+      NotesPage(
+        onSelectionModeChanged: (isSelecting) {
+          setState(() {
+            _hideAppBar = isSelecting;
+            _hideBottomBar = isSelecting;
+          });
+        },
+      ),
+    ];
+  }
+
+  void _onTabTapped(int index, {bool autoFocusSearch = false}) {
     if (index == 2) {
-      // Navigate to Add Note page as a separate screen
       Navigator.push(
         context,
-        MaterialPageRoute(builder: (context) => const AddNotePage()),
-      ).then((_) {
-        // Refresh the current page after returning
-        setState(() {});
-      });
-      return; // Don't change the current tab
+        MaterialPageRoute(builder: (_) => const AddNotePage()),
+      );
+      return;
     }
-    
-    // Map bottom bar indices to page indices
-    // Bottom bar: 0=Home, 1=Search, 2=Add(skip), 3=Tools, 4=Notes
-    // Pages array: 0=Home, 1=Search, 2=Tools, 3=Notes
-    int pageIndex;
-    if (index < 2) {
-      pageIndex = index; // Home and Search stay the same
-    } else {
-      pageIndex = index - 1; // Tools becomes 2, Notes becomes 3
-    }
-    
+
+    int pageIndex = index < 2 ? index : index - 1;
+
     setState(() {
       _currentIndex = pageIndex;
+      _pendingSearchFocus = autoFocusSearch;
     });
+
+    if (pageIndex == 1 && autoFocusSearch) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        SearchPage.searchKey.currentState?.focusSearch();
+
+        _pendingSearchFocus = false;
+      });
+    }
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -78,55 +104,60 @@ class _BottomBarState extends State<BottomBar> {
           extendBodyBehindAppBar: false,
           resizeToAvoidBottomInset: false,
 
-          appBar: AppBar(
-            title: Text(_getPageTitle()),
-            backgroundColor: kDarkSurface,
-            elevation: 0,
-            surfaceTintColor: Colors.transparent,
-            shadowColor: Colors.transparent,
-            titleTextStyle: const TextStyle(
-              color: Colors.white,
-              fontSize: 20,
-              fontWeight: FontWeight.w600,
-            ),
-            iconTheme: const IconThemeData(color: Colors.white),
-            actions: [
-              Padding(
-                padding: const EdgeInsets.only(right: 16.0),
-                child: GestureDetector(
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => ProfilePage()),
-                    );
-                  },
-                  child: CircleAvatar(
-                    radius: 18,
-                    backgroundColor: Colors.white,
-                    child: const Text(
-                      "PFP",
-                      style: TextStyle(
-                        color: Colors.black,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
+          drawer: _disableDrawer
+              ? null
+              : SideBar(onNavigate: (index) {
+                  if (index < 2) {
+                    _onTabTapped(index);
+                  } else if (index == 2) {
+                    _onTabTapped(2);
+                  } else {
+                    _onTabTapped(index + 1);
+                  }
+                }),
+
+          drawerEnableOpenDragGesture: !_disableDrawer,
+
+          appBar: _hideAppBar
+          ? null
+          : AppBar(
+              title: Text(_getPageTitle()),
+              backgroundColor: kDarkSurface,
+              elevation: 0,
+              surfaceTintColor: Colors.transparent,
+              shadowColor: Colors.transparent,
+              titleTextStyle: const TextStyle(
+                color: Colors.white,
+                fontSize: 20,
+                fontWeight: FontWeight.w600,
+              ),
+              iconTheme: const IconThemeData(color: Colors.white),
+              actions: [
+                Padding(
+                  padding: const EdgeInsets.only(right: 16.0),
+                  child: GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => ProfilePage()),
+                      );
+                    },
+                    child: CircleAvatar(
+                      radius: 18,
+                      backgroundColor: Colors.white,
+                      child: const Text(
+                        "PFP",
+                        style: TextStyle(
+                          color: Colors.black,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
-            ],
-          ),
-
-          drawer: SideBar(onNavigate: (index) {
-            // Map indices for sidebar navigation
-            if (index < 2) {
-              _onTabTapped(index);
-            } else if (index == 2) {
-              _onTabTapped(2); // Add button
-            } else {
-              _onTabTapped(index + 1); // Tools and Notes
-            }
-          }),
+              ],
+            ),
 
           body: Stack(
             children: [
@@ -161,40 +192,56 @@ class _BottomBarState extends State<BottomBar> {
                 bottom: 0,
                 height: 72,
                 child: IgnorePointer(
-                  ignoring: false,
-                  child: Container(
-                    color: kDarkSurface,
-                    child: Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
+                  ignoring: _hideBottomBar,
+                  child: AnimatedSlide(
+                    duration: const Duration(milliseconds: 220),
+                    curve: Curves.easeOutCubic,
+                    offset: _hideBottomBar ? const Offset(0, 1) : Offset.zero,
+                    child: AnimatedOpacity(
+                      duration: const Duration(milliseconds: 150),
+                      opacity: _hideBottomBar ? 0 : 1,
                       child: Container(
-                        height: 60,
                         color: kDarkSurface,
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceAround,
-                          children: <Widget>[
-                            _buildTabItem(icon: Icons.home, index: 0, label: 'Home'),
-                            _buildTabItem(icon: Icons.search, index: 1, label: 'Search'),
-                            _buildCenterLabel(index: 2, label: 'Add'),
-                            _buildTabItem(icon: Icons.build, index: 3, label: 'Tools'),
-                            _buildTabItem(icon: Icons.note, index: 4, label: 'Notes'),
-                          ],
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: SizedBox(
+                          height: 60,
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceAround,
+                            children: <Widget>[
+                              _buildTabItem(icon: Icons.home, index: 0, label: 'Home'),
+                              _buildTabItem(icon: Icons.search, index: 1, label: 'Search'),
+                              _buildCenterLabel(index: 2, label: 'Add'),
+                              _buildTabItem(icon: Icons.build, index: 3, label: 'Tools'),
+                              _buildTabItem(icon: Icons.note, index: 4, label: 'Notes'),
+                            ],
+                          ),
                         ),
                       ),
                     ),
                   ),
                 ),
               ),
+
               
               // Fixed Floating Action Button with absolute positioning
               Positioned(
                 left: screenWidth / 2 - 28,
                 bottom: 48,
                 child: IgnorePointer(
-                  ignoring: false,
-                  child: FloatingActionButton(
-                    backgroundColor: kPrimaryColor,
-                    onPressed: () => _onTabTapped(2),
-                    child: const Icon(Icons.add, color: Colors.white),
+                  ignoring: _hideBottomBar,
+                  child: AnimatedScale(
+                    scale: _hideBottomBar ? 0 : 1,
+                    duration: const Duration(milliseconds: 180),
+                    curve: Curves.easeOut,
+                    child: AnimatedOpacity(
+                      opacity: _hideBottomBar ? 0 : 1,
+                      duration: const Duration(milliseconds: 120),
+                      child: FloatingActionButton(
+                        backgroundColor: kPrimaryColor,
+                        onPressed: () => _onTabTapped(2),
+                        child: const Icon(Icons.add, color: Colors.white),
+                      ),
+                    ),
                   ),
                 ),
               ),

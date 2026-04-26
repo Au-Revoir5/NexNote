@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:nexnote/backend/file_opener.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../backend/note_thumbnail.dart';
-import '../backend/note_thumbnail_cache.dart';
-import '../backend/note_thumbnail_generator.dart';
-import 'dart:typed_data';
+import '../backend/thumbnail/note_thumbnail.dart';
+import '../backend/thumbnail/note_thumbnail_cache.dart';
+import '../backend/thumbnail/note_thumbnail_generator.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:flutter/services.dart';
+import 'dart:async';
 
 const kPrimaryColor = Color(0xFF6366F1);
 const kDarkSurface = Color(0xFF1C1C1E);
@@ -19,6 +21,8 @@ class FavoritesPage extends StatefulWidget {
 }
 
 class _FavoritesPageState extends State<FavoritesPage> {
+  String? _copiedNoteId;
+  Timer? _copyResetTimer;
   final _supabase = Supabase.instance.client;
   String sortBy = "Last Edited (Recent)";
   bool isGridView = false;
@@ -351,59 +355,405 @@ class _FavoritesPageState extends State<FavoritesPage> {
     );
   }
 
-  void _showItemMenu(Map<String, dynamic> note) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: kCardColor,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+  Widget _buildOption(
+    BuildContext context,
+    IconData icon,
+    String label,
+    VoidCallback onTap, {
+    bool isDestructive = false,
+  }) {
+    return ListTile(
+      leading: Icon(
+        icon,
+        color: isDestructive ? Colors.red : Colors.white,
       ),
-      builder: (context) {
-        return SafeArea(
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                ListTile(
-                  leading: const Icon(Icons.download, color: Colors.white),
-                  title: const Text("Download", style: TextStyle(color: Colors.white)),
-                  onTap: () {
-                    Navigator.pop(context);
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.share, color: Colors.white),
-                  title: const Text("Share", style: TextStyle(color: Colors.white)),
-                  onTap: () {
-                    Navigator.pop(context);
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.star_border, color: Colors.white),
-                  title: const Text("Remove from Favorites", style: TextStyle(color: Colors.white)),
-                  onTap: () {
-                    Navigator.pop(context);
-                    _removeFavorite(note['id']);
-                  },
-                ),
-                const Divider(color: Colors.grey),
-                ListTile(
-                  leading: const Icon(Icons.delete, color: Colors.red),
-                  title: const Text("Delete", style: TextStyle(color: Colors.red)),
-                  onTap: () {
-                    Navigator.pop(context);
-                    _showDeleteConfirmation(note);
-                  },
-                ),
-              ],
-            ),
-          ),
-        );
-      },
+      title: Text(
+        label,
+        style: TextStyle(
+          color: isDestructive ? Colors.red : Colors.white,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+      onTap: onTap,
     );
   }
 
+
+  void _showItemMenu(Map<String, dynamic> note) {
+    showModalBottomSheet(
+      backgroundColor: kCardColor,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setSheetState) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+
+            _buildOption(context, Icons.edit, "Edit note", () {
+              Navigator.pop(context);
+              _showEditDialog(note);
+            }),
+
+
+            _buildOption(context, Icons.share, "Share", () async {
+              Navigator.pop(context);
+
+              try {
+                final supabase = Supabase.instance.client;
+
+                final uri = Uri.parse(note['file_url']);
+                final segments = uri.pathSegments;
+
+                final bucketIndex = segments.indexOf('notes');
+                if (bucketIndex == -1) throw Exception('Invalid file URL');
+
+                final storagePath =
+                    segments.sublist(bucketIndex + 1).join('/');
+
+                final signedUrl = await supabase.storage
+                    .from('notes')
+                    .createSignedUrl(storagePath, 60 * 60);
+
+                await Share.share(
+                  '📄 ${note['title']}\n\n$signedUrl',
+                  subject: note['title'],
+                );
+              } catch (e) {
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Failed to share note: $e')),
+                );
+              }
+            }),
+
+            _buildOption(
+              context,
+              _copiedNoteId == note['id'] ? Icons.check : Icons.link,
+              _copiedNoteId == note['id'] ? "Copied" : "Copy link",
+              () async {
+                try {
+                  final uri = Uri.parse(note['file_url']);
+                  final segments = uri.pathSegments;
+
+                  final bucketIndex = segments.indexOf('notes');
+                  if (bucketIndex == -1) throw Exception('Invalid file URL');
+
+                  final storagePath =
+                      segments.sublist(bucketIndex + 1).join('/');
+
+                  final signedUrl = await _supabase.storage
+                      .from('notes')
+                      .createSignedUrl(storagePath, 60 * 60);
+
+                  await Clipboard.setData(
+                    ClipboardData(text: signedUrl),
+                  );
+
+                  // inline visual feedback
+                  setSheetState(() {
+                    _copiedNoteId = note['id'];
+                  });
+
+                  // optional but recommended
+                  HapticFeedback.lightImpact();
+
+                  // auto reset
+                  // cancel previous timer if exists
+                  _copyResetTimer?.cancel();
+
+                  _copyResetTimer = Timer(const Duration(seconds: 5), () {
+                    if (!mounted) return;
+                    setSheetState(() {
+                      _copiedNoteId = null;
+                    });
+                  });
+
+                } catch (e) {
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Failed to copy link: $e')),
+                  );
+                }
+              },
+            ),
+
+            _buildOption(
+              context,
+              Icons.star_border,
+              "Remove from Favorites",
+              () {
+                Navigator.pop(context);
+                _removeFavorite(note['id']);
+              },
+            ),
+
+            const Divider(color: Colors.grey),
+
+            _buildOption(
+              context,
+              Icons.delete,
+              "Delete",
+              () {
+                Navigator.pop(context);
+                _showDeleteConfirmation(note);
+              },
+              isDestructive: true,
+            ),
+          ],
+        ),
+      ),
+      )
+    );
+  }
+
+  void _showEditDialog(Map<String, dynamic> note) {
+    final TextEditingController titleController =
+    TextEditingController(text: note['title']);
+
+    final TextEditingController descController =
+        TextEditingController(text: note['description'] ?? '');
+
+    final TextEditingController tagController = TextEditingController();
+
+    List<String> editableTags =
+        note['tags'] != null ? List<String>.from(note['tags']) : [];
+
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: kCardColor,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: const Text(
+            'Edit Note',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Title input
+                const Text(
+                  'Title',
+                  style: TextStyle(color: Colors.grey, fontSize: 13),
+                ),
+                const SizedBox(height: 6),
+                Container(
+                  decoration: BoxDecoration(
+                    color: kDarkSurface,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: TextField(
+                    controller: titleController,
+                    style: const TextStyle(color: Colors.white, fontSize: 15),
+                    decoration: const InputDecoration(
+                      hintText: 'Enter title...',
+                      hintStyle: TextStyle(color: Colors.grey, fontSize: 14),
+                      border: InputBorder.none,
+                      contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                
+                // Description input
+                const Text(
+                  'Description',
+                  style: TextStyle(color: Colors.grey, fontSize: 13),
+                ),
+                const SizedBox(height: 6),
+                Container(
+                  decoration: BoxDecoration(
+                    color: kDarkSurface,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: TextField(
+                    controller: descController,
+                    style: const TextStyle(color: Colors.white, fontSize: 15),
+                    maxLines: 3,
+                    decoration: const InputDecoration(
+                      hintText: 'Add a description...',
+                      hintStyle: TextStyle(color: Colors.grey, fontSize: 14),
+                      border: InputBorder.none,
+                      contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                
+                // Tags section
+                const Text(
+                  'Tags',
+                  style: TextStyle(color: Colors.grey, fontSize: 13),
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: kDarkSurface,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: TextField(
+                          controller: tagController,
+                          style: const TextStyle(color: Colors.white, fontSize: 15),
+                          decoration: const InputDecoration(
+                            hintText: 'Add a tag...',
+                            hintStyle: TextStyle(color: Colors.grey, fontSize: 14),
+                            border: InputBorder.none,
+                            contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          ),
+                          onSubmitted: (value) {
+                            final trimmed = value.trim().toLowerCase();
+                            if (trimmed.isNotEmpty && !editableTags.contains(trimmed)) {
+                              setDialogState(() {
+                                editableTags.add(trimmed);
+                                tagController.clear();
+                              });
+                            }
+                          },
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: kPrimaryColor,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: IconButton(
+                        icon: const Icon(Icons.add, color: Colors.white, size: 20),
+                        onPressed: () {
+                          final trimmed = tagController.text.trim().toLowerCase();
+                          if (trimmed.isNotEmpty && !editableTags.contains(trimmed)) {
+                            setDialogState(() {
+                              editableTags.add(trimmed);
+                              tagController.clear();
+                            });
+                          }
+                        },
+                        padding: const EdgeInsets.all(8),
+                        constraints: const BoxConstraints(),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                
+                // Display tags
+                if (editableTags.isNotEmpty)
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: editableTags.map((tag) {
+                      return Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: kDarkSurface,
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: kPrimaryColor.withOpacity(0.3), width: 1),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              tag,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w400,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            GestureDetector(
+                              onTap: () {
+                                setDialogState(() {
+                                  editableTags.remove(tag);
+                                });
+                              },
+                              child: Icon(
+                                Icons.close,
+                                color: Colors.grey[400],
+                                size: 14,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                  ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text(
+                'Cancel',
+                style: TextStyle(color: Colors.grey, fontSize: 15),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                try {
+                  final supabase = Supabase.instance.client;
+                  await supabase
+                      .from('notes')
+                      .update({
+                        'title': titleController.text.trim(),
+                        'description': descController.text.trim().isEmpty ? null : descController.text.trim(),
+                        'tags': editableTags,
+                      })
+                      .eq('id', note['id']);
+                  
+                  if (!mounted) return;
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Note updated successfully'),
+                        backgroundColor: Colors.green,
+                      ),
+                    );
+                    _loadFavorites();
+                } catch (e) {
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Error updating note: $e'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: kPrimaryColor,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              child: const Text(
+                'Save',
+                style: TextStyle(color: Colors.white, fontSize: 15),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
   void _showDeleteConfirmation(Map<String, dynamic> note) {
     showDialog(
       context: context,

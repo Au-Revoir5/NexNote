@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:typed_data';
 import 'package:nexnote/side/preview.dart';
-import '../backend/note_thumbnail.dart';
-import '../backend/note_thumbnail_cache.dart';
-import '../backend/note_thumbnail_generator.dart';
+import '../backend/thumbnail/note_thumbnail.dart';
+import '../backend/thumbnail/note_thumbnail_cache.dart';
+import '../backend/thumbnail/note_thumbnail_generator.dart';
 
 const kPrimaryColor = Color(0xFF6366F1);
 const kDarkSurface = Color(0xFF1C1C1E);
@@ -12,7 +12,17 @@ const kCardColor = Color(0xFF2C2C2E);
 const kAccentYellow = Color(0xFFFBBF24);
 
 class SearchPage extends StatefulWidget {
-  const SearchPage({super.key});
+  final ValueChanged<bool>? onSearchingChanged;
+  final bool autoFocus;
+
+  const SearchPage({
+    super.key,
+    this.onSearchingChanged,
+    this.autoFocus = false,
+  });
+
+  static final GlobalKey<_SearchPageState> searchKey =
+      GlobalKey<_SearchPageState>();
 
   @override
   State<SearchPage> createState() => _SearchPageState();
@@ -21,6 +31,8 @@ class SearchPage extends StatefulWidget {
 class _SearchPageState extends State<SearchPage> {
   final TextEditingController _searchController = TextEditingController();
   final supabase = Supabase.instance.client;
+  final FocusNode _searchFocusNode = FocusNode(); 
+  bool _isSearching = false;  
 
   String sortBy = "Last Edited (Recent)";
   List<NoteItem> notes = [];
@@ -30,14 +42,39 @@ class _SearchPageState extends State<SearchPage> {
   @override
   void initState() {
     super.initState();
+
     _fetchPublicNotes();
+
+    if (widget.autoFocus) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => focusSearch());
+    }
+
+    _searchFocusNode.addListener(() {
+      final searching =
+          _searchFocusNode.hasFocus || _searchController.text.isNotEmpty;
+
+      widget.onSearchingChanged?.call(searching);
+
+      setState(() {
+        _isSearching = searching;
+      });
+    });
   }
+
+  void focusSearch() {
+    if (!_searchFocusNode.hasFocus) {
+      _searchFocusNode.requestFocus();
+    }
+  }
+
 
   @override
   void dispose() {
     _searchController.dispose();
+    _searchFocusNode.dispose();
     super.dispose();
   }
+
 
   Future<void> _fetchPublicNotes() async {
     try {
@@ -204,39 +241,48 @@ class _SearchPageState extends State<SearchPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 16.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Find Notes You Need',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 32,
-                                fontWeight: FontWeight.bold,
+                      AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 90),
+                        child: _isSearching
+                            ? const SizedBox.shrink()
+                            : const Padding(
+                                key: ValueKey('search-header'),
+                                padding: EdgeInsets.symmetric(horizontal: 16.0),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Find Notes You Need',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 32,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    SizedBox(height: 8),
+                                    Text(
+                                      '"Learning never exhausts the mind."',
+                                      style: TextStyle(
+                                        color: Colors.white70,
+                                        fontSize: 16,
+                                        fontStyle: FontStyle.italic,
+                                      ),
+                                    ),
+                                    Text(
+                                      '~ Leonardo da Vinci',
+                                      style: TextStyle(
+                                        color: Colors.white70,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ),
-                            SizedBox(height: 8),
-                            Text(
-                              '"Learning never exhausts the mind."',
-                              style: TextStyle(
-                                color: Colors.white70,
-                                fontSize: 16,
-                                fontStyle: FontStyle.italic,
-                              ),
-                            ),
-                            Text(
-                              '~ Leonardo da Vinci',
-                              style: TextStyle(
-                                color: Colors.white70,
-                                fontSize: 14,
-                              ),
-                            ),
-                          ],
-                        ),
                       ),
-                      const SizedBox(height: 32),
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 90),
+                        height: _isSearching ? 12 : 32,
+                      ),
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16.0),
                         child: Row(
@@ -249,18 +295,45 @@ class _SearchPageState extends State<SearchPage> {
                                 ),
                                 child: TextField(
                                   controller: _searchController,
-                                  onChanged: _filterNotes,
+                                  focusNode: _searchFocusNode,
+                                  onChanged: (value) {
+                                    _filterNotes(value);
+                                    widget.onSearchingChanged?.call(value.isNotEmpty);
+                                    setState(() {
+                                      _isSearching =
+                                          value.isNotEmpty || _searchFocusNode.hasFocus;
+                                    });
+                                  },
                                   style: TextStyle(
                                     color: _searchController.text.isEmpty
                                         ? Colors.black.withValues(alpha: 0.5)
                                         : Colors.black,
                                     fontSize: 16,
                                   ),
-                                  decoration: const InputDecoration(
+                                  decoration: InputDecoration(
                                     hintText: 'Search',
                                     hintStyle: TextStyle(color: Colors.grey),
-                                    prefixIcon:
-                                        Icon(Icons.search, color: Colors.grey),
+                                    prefixIcon: AnimatedSwitcher(
+                                      duration: const Duration(milliseconds: 90),
+                                      child: _isSearching
+                                          ? IconButton(
+                                              key: const ValueKey('back'),
+                                              icon: const Icon(Icons.arrow_back, color: Colors.grey),
+                                              onPressed: () {
+                                                _searchController.clear();
+                                                _filterNotes('');
+                                                _searchFocusNode.unfocus();
+                                                setState(() {
+                                                  _isSearching = false;
+                                                });
+                                              },
+                                            )
+                                          : const Icon(
+                                              Icons.search,
+                                              key: ValueKey('search'),
+                                              color: Colors.grey,
+                                            ),
+                                    ),
                                     border: InputBorder.none,
                                     contentPadding: EdgeInsets.symmetric(
                                       horizontal: 20,
@@ -268,18 +341,6 @@ class _SearchPageState extends State<SearchPage> {
                                     ),
                                   ),
                                 ),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Container(
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(25),
-                              ),
-                              child: IconButton(
-                                onPressed: () {},
-                                icon: const Icon(Icons.tune, color: Colors.grey),
-                                padding: const EdgeInsets.all(12),
                               ),
                             ),
                             const SizedBox(width: 8),
