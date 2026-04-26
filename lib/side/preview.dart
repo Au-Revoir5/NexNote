@@ -307,6 +307,7 @@ class _ActionSection extends StatelessWidget {
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: kPrimaryColor,
+                foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
@@ -325,7 +326,7 @@ class _ActionSection extends StatelessWidget {
               icon: const Icon(Icons.download),
               label: const Text('Download'),
               onPressed: () {
-                FileOpener.openFile(
+                FileOpener.downloadFileWithProgress(
                   context,
                   note.fileUrl,
                   '${note.title}.${note.fileType}',

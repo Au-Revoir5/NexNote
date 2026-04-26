@@ -1,5 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../backend/SupabaseHomeNotesProvider.dart';
+import '../backend/thumbnail/note_thumbnail.dart';
+import '../backend/thumbnail/note_thumbnail_cache.dart';
+import '../backend/thumbnail/note_thumbnail_generator.dart';
+import '../backend/file_opener.dart';
+import 'dart:typed_data';
+import '../side/preview.dart';
+import '../main/search.dart' show NoteItem;
+
 
 // Constants for reuse
 const kPrimaryColor = Color(0xFF6366F1);
@@ -7,21 +16,56 @@ const kDarkSurface = Color(0xFF1C1C1E);
 const kCardColor = Color(0xFF2C2C2E);
 const kAccentYellow = Color(0xFFFBBF24);
 
+class NotePreview {
+  final String id;
+  final String title;
+  final DateTime updatedAt;
+  final bool isPublic;
+  final String fileUrl;
+  final String fileType;
+  final String? authorAvatar;
+  final String authorName;
+
+  const NotePreview({
+    required this.id,
+    required this.title,
+    required this.updatedAt,
+    required this.isPublic,
+    required this.fileUrl,
+    required this.fileType,
+    required this.authorName,
+    this.authorAvatar,
+  });
+
+}
+
+abstract class HomeNotesProvider {
+  Future<List<NotePreview>> communityNotes();
+  Future<List<NotePreview>> recentNotes();
+  Future<List<NotePreview>> favoriteNotes();
+}
+
+
 // -------------------------------------------------------------
 // HomePage Widget Wrapper
 // -------------------------------------------------------------
 class HomePage extends StatefulWidget {
-  const HomePage({super.key});
+  final void Function(int index, {bool autoFocusSearch})? onTabRequest;
+
+  const HomePage({super.key, this.onTabRequest});
 
   @override
   _HomePageState createState() => _HomePageState();
 }
 
 class _HomePageState extends State<HomePage>
-    with SingleTickerProviderStateMixin {
+  with SingleTickerProviderStateMixin {
   late AnimationController _animationController;
   late Animation<int> _characterCount;
-
+  late final HomeNotesProvider provider = SupabaseHomeNotesProvider();
+  late Future<List<NotePreview>> _recentFuture = Future.value([]);
+  late Future<List<NotePreview>> _communityFuture = Future.value([]);
+  late Future<List<NotePreview>> _favoritesFuture = Future.value([]);
   String _username = "User";
 
   String get _fullText => "Welcome $_username!";
@@ -31,7 +75,38 @@ class _HomePageState extends State<HomePage>
     super.initState();
     _setupAnimation();
     _loadUsername();
+
+    _communityFuture = provider.communityNotes();
+    _recentFuture = provider.recentNotes();
+    _favoritesFuture = provider.favoriteNotes();
   }
+
+
+
+  String _timeAgo(DateTime dateTime) {
+    final diff = DateTime.now().difference(dateTime);
+    if (diff.inMinutes < 60) return '${diff.inMinutes} mins ago';
+    if (diff.inHours < 24) return '${diff.inHours} hours ago';
+    return '${diff.inDays} days ago';
+  }
+
+  Widget _horizontalLoader() {
+    return const SizedBox(
+      height: 220,
+      child: Center(
+        child: CircularProgressIndicator(color: kPrimaryColor),
+      ),
+    );
+  }
+
+  Widget _emptyState(String text) {
+    return SizedBox(
+      height: 180,
+      child: Center(
+        child: Text(text, style: const TextStyle(color: Colors.grey))),
+    );
+  }
+
 
   void _setupAnimation() {
     _animationController = AnimationController(
@@ -46,6 +121,8 @@ class _HomePageState extends State<HomePage>
       CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
     );
   }
+
+  
 
   // -------------------------------------------------------------
   // Fetch username from Supabase
@@ -88,45 +165,47 @@ class _HomePageState extends State<HomePage>
     _animationController.dispose();
     super.dispose();
   }
-
+  
   // -------------------------------------------------------------
   // Animated TextSpan Builder (Dynamic username color)
   // -------------------------------------------------------------
   List<TextSpan> _buildAnimatedTextSpans(String animatedText) {
-  final welcomePrefix = "Welcome ";
 
-  if (animatedText.isEmpty) return [];
+    final welcomePrefix = "Welcome ";
 
-  // Still typing "Welcome "
-  if (animatedText.length <= welcomePrefix.length) {
-    return [
+    if (animatedText.isEmpty) return [];
+
+    // Still typing "Welcome "
+    if (animatedText.length <= welcomePrefix.length) {
+      return [
+        TextSpan(
+          text: animatedText,
+          style: TextStyle(color: Colors.white),
+        )
+      ];
+    }
+
+    // "Welcome " finished, add it as white
+    final spans = <TextSpan>[
       TextSpan(
-        text: animatedText,
+        text: welcomePrefix,
         style: TextStyle(color: Colors.white),
-      )
+      ),
     ];
+
+    final nameStart = welcomePrefix.length;
+    final remaining = animatedText.length > nameStart
+        ? animatedText.substring(nameStart)
+        : '';
+
+    spans.add(TextSpan(
+      text: remaining,
+      style: TextStyle(color: kPrimaryColor),
+    ));
+
+    return spans;
   }
-
-  // "Welcome " finished, add it as white
-  final spans = <TextSpan>[
-    TextSpan(
-      text: welcomePrefix,
-      style: TextStyle(color: Colors.white),
-    ),
-  ];
-
-  final nameStart = welcomePrefix.length;
-  final remaining = animatedText.length > nameStart
-      ? animatedText.substring(nameStart)
-      : '';
-
-  spans.add(TextSpan(
-    text: remaining,
-    style: TextStyle(color: kPrimaryColor),
-  ));
-
-  return spans;
-}
+  
 
   // -------------------------------------------------------------
   // UI
@@ -134,23 +213,39 @@ class _HomePageState extends State<HomePage>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: SingleChildScrollView(
-        padding: EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
+      backgroundColor: kDarkSurface,
+      body: RefreshIndicator(
+      color: kPrimaryColor,
+      onRefresh: () async {
+        setState(() {
+          _communityFuture = provider.communityNotes();
+          _recentFuture = provider.recentNotes();
+          _favoritesFuture = provider.favoriteNotes();
+        });
+      },
+      child: SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
+          padding: EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
             AnimatedBuilder(
               animation: _characterCount,
               builder: (context, child) {
-                final animatedText =
-                    _fullText.substring(0, _characterCount.value);
+                final animatedText = _fullText.substring(0, _characterCount.value);
+                final showCursor = _characterCount.value < _fullText.length;
+
                 return RichText(
                   text: TextSpan(
-                    style: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    children: _buildAnimatedTextSpans(animatedText),
+                    style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                    children: [
+                      ..._buildAnimatedTextSpans(animatedText),
+                      if (showCursor)
+                        const TextSpan(
+                          text: '|',
+                          style: TextStyle(color: Colors.white),
+                        ),
+                    ],
                   ),
                 );
               },
@@ -165,45 +260,6 @@ class _HomePageState extends State<HomePage>
                 height: 1.4,
               ),
             ),
-            SizedBox(height: 32),
-
-            Row(
-              children: [
-                Expanded(
-                  child: ActionButton(
-                    icon: Icons.auto_fix_high,
-                    label: 'Enhance',
-                    backgroundColor: kCardColor,
-                    textColor: kAccentYellow,
-                    borderColor: kAccentYellow,
-                  ),
-                ),
-                SizedBox(width: 16),
-                Expanded(
-                  child: ActionButton(
-                    icon: Icons.compare_arrows,
-                    label: 'Compare',
-                    backgroundColor: kPrimaryColor,
-                    textColor: Colors.white,
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: 16),
-
-            Center(
-              child: SizedBox(
-                width: 150,
-                child: ActionButton(
-                  icon: Icons.merge_type,
-                  label: 'Combine',
-                  backgroundColor: kCardColor,
-                  textColor: kPrimaryColor,
-                  borderColor: kPrimaryColor,
-                ),
-              ),
-            ),
-
             SizedBox(height: 32),
 
             // ---------------- Explore notes banner ----------------
@@ -231,20 +287,29 @@ class _HomePageState extends State<HomePage>
 
             SizedBox(height: 24),
 
-            // ---------------- Search, Filter, Sort ----------------
-            Row(
-              children: [
-                Expanded(
-                  child: SearchFilterSortBox(
-                      icon: Icons.search, label: 'Search'),
+            // ---------------- Search ----------------
+            GestureDetector(
+              onTap: () {
+                widget.onTabRequest?.call(1, autoFocusSearch: true);// Search tab
+              },
+              child: Hero(
+                tag: 'search-bar',
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(25),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.search, color: Colors.grey[600], size: 20),
+                      const SizedBox(width: 8),
+                      Text('Search notes...', style: TextStyle(color: Colors.grey[600], fontSize: 16)),
+                    ],
+                  ),
                 ),
-                SizedBox(width: 12),
-                SearchFilterSortBox(icon: Icons.filter_alt, label: 'Filter'),
-                SizedBox(width: 12),
-                SearchFilterSortBox(icon: Icons.sort, label: 'Sort'),
-              ],
+              ),
             ),
-
             SizedBox(height: 24),
 
             // ---------------- Community Notes ----------------
@@ -259,11 +324,198 @@ class _HomePageState extends State<HomePage>
                     fontWeight: FontWeight.w600,
                   ),
                 ),
+                GestureDetector(
+                  onTap: () {
+                    widget.onTabRequest?.call(1, autoFocusSearch: false);// Search
+                  },
+                  child: const Text(
+                    'View All >',
+                    style: TextStyle(color: Colors.grey, fontSize: 14),
+                  ),
+                ),
+              ],
+            ),
+
+
+            SizedBox(height: 16),
+
+            FutureBuilder<List<NotePreview>>(
+              future: _communityFuture,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return _horizontalLoader();
+                }
+
+                final data = snapshot.data ?? [];
+                if (data.isEmpty) {
+                  return _emptyState("No community notes yet");
+                }
+
+                return GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: data.length.clamp(0, 6),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 3,
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 12,
+                    childAspectRatio: 0.95,
+                  ),
+                  itemBuilder: (context, i) {
+                    final note = data[i];
+                    return _CommunityGridCard(note: note);
+                  },
+                );
+              },
+            ),
+
+
+            SizedBox(height: 32),
+
+            // ---------------- Recent Notes ----------------
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
                 Text(
-                  'View All >',
+                  'Recent Notes',
                   style: TextStyle(
-                    color: Colors.grey,
-                    fontSize: 14,
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                  GestureDetector(
+                    onTap: () {
+                     widget.onTabRequest?.call(4); // Files page
+                    },
+                    child: const Text(
+                      'View All >',
+                      style: TextStyle(color: Colors.grey, fontSize: 14),
+                    ),
+                  ),
+              ],
+            ),
+
+            SizedBox(height: 16),
+            FutureBuilder<List<NotePreview>>(
+              future: _recentFuture,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return _horizontalLoader();
+                }
+
+                final data = (snapshot.data ?? []).take(2).toList();
+                if (data.isEmpty) {
+                  return _emptyState("No recent notes");
+                }
+                    final screenWidth = MediaQuery.of(context).size.width;
+                    final horizontalPadding = 20.0 * 2; // left + right
+                    final cardGap = 12.0;
+
+                    final twoCardWidth =
+                    (screenWidth - horizontalPadding - cardGap) / 2;
+                return SizedBox(
+                  height: 180,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: data.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 12),
+                    itemBuilder: (context, i) {
+                      final note = data[i];
+                      return SizedBox(
+                        width: twoCardWidth,
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(12),
+                          onTap: () {
+                            FileOpener.openFile(
+                              context,
+                              note.fileUrl,
+                              '${note.title}.${note.fileType}',
+                            );
+                          },
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: kCardColor,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // 🔥 REAL THUMBNAIL
+                                SizedBox(
+                                  height: 110,
+                                  child: ClipRRect(
+                                    borderRadius: const BorderRadius.vertical(
+                                      top: Radius.circular(12),
+                                    ),
+                                    child: NoteThumbnailWithCache(
+                                      noteId: note.id,
+                                      fileUrl: note.fileUrl,
+                                      fileType: note.fileType,
+                                    ),
+                                  ),
+                                ),
+
+                                Padding(
+                                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        note.title,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        "Last edited ${_timeAgo(note.updatedAt)}",
+                                        style: TextStyle(
+                                          color: Colors.grey[500],
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+
+                    },
+                  ),
+                );
+              },
+            ),
+
+
+            SizedBox(height: 32),
+
+            // ---------------- My Favorites ----------------
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'My Favorites',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+               GestureDetector(
+                  onTap: () {
+                    // TODO: hook into bottom nav index
+                  },
+                  child: const Text(
+                    'View All >',
+                    style: TextStyle(color: Colors.grey, fontSize: 14),
                   ),
                 ),
               ],
@@ -271,45 +523,109 @@ class _HomePageState extends State<HomePage>
 
             SizedBox(height: 16),
 
-            GridView.count(
-              crossAxisCount: 2,
-              shrinkWrap: true,
-              physics: NeverScrollableScrollPhysics(),
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-              childAspectRatio: 1.2,
-              children: [
-                NoteCard(
-                    title: 'Statistics',
-                    backgroundColor: Colors.white,
-                    hasColoredElements: true),
-                NoteCard(
-                    title: 'Matematika',
-                    backgroundColor: Color(0xFFFFF3CD),
-                    hasColoredElements: true),
-                NoteCard(
-                    title: 'Cara Dapat Pacar',
-                    backgroundColor: Colors.white,
-                    hasColoredElements: false),
-                NoteCard(
-                    title: 'Biografi Darrell',
-                    backgroundColor: Color(0xFFFFE5E5),
-                    hasColoredElements: true),
-                NoteCard(
-                    title: 'Physics',
-                    backgroundColor: Color(0xFFFFF0F0),
-                    hasColoredElements: true),
-                NoteCard(
-                    title: 'Biology',
-                    backgroundColor: Color(0xFFFFF8E1),
-                    hasColoredElements: true),
-              ],
+            FutureBuilder<List<NotePreview>>(
+              future: _favoritesFuture,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return _horizontalLoader();
+                }
+
+                final data = (snapshot.data ?? []).take(2).toList();
+                if (data.isEmpty) {
+                  return _emptyState("No favorite notes");
+                }
+                final screenWidth = MediaQuery.of(context).size.width;
+                final horizontalPadding = 20.0 * 2; // left + right
+                final cardGap = 12.0;
+
+                final twoCardWidth =
+                (screenWidth - horizontalPadding - cardGap) / 2;
+                return SizedBox(
+                  height: 220,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: data.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 12),
+                    itemBuilder: (context, i) {
+                      final note = data[i];
+                      return SizedBox(
+                        width: twoCardWidth,
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(12),
+                          onTap: () {
+                            FileOpener.openFile(
+                              context,
+                              note.fileUrl,
+                              '${note.title}.${note.fileType}',
+                            );
+                          },
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: kCardColor,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // 🔥 REAL THUMBNAIL
+                                SizedBox(
+                                  height: 110,
+                                  child: ClipRRect(
+                                    borderRadius: const BorderRadius.vertical(
+                                      top: Radius.circular(12),
+                                    ),
+                                    child: NoteThumbnailWithCache(
+                                      noteId: note.id,
+                                      fileUrl: note.fileUrl,
+                                      fileType: note.fileType,
+                                    ),
+                                  ),
+                                ),
+
+                                Padding(
+                                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        note.title,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        "Last edited ${_timeAgo(note.updatedAt)}",
+                                        style: TextStyle(
+                                          color: Colors.grey[500],
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+
+                    },
+                  ),
+                );
+              },
             ),
+
 
             SizedBox(height: 20),
           ],
         ),
       ),
+      )
     );
   }
 }
@@ -411,7 +727,6 @@ class NoteCard extends StatelessWidget {
             child: Column(
               children: [
                 Container(
-                  width: double.infinity,
                   height: 20,
                   decoration: BoxDecoration(
                     color: hasColoredElements
@@ -450,37 +765,211 @@ class NoteCard extends StatelessWidget {
   }
 }
 
-class SearchFilterSortBox extends StatelessWidget {
-  final IconData icon;
-  final String label;
+class RecentNoteCard extends StatelessWidget {
+  final String title;
+  final String subtitle;
 
-  const SearchFilterSortBox({
+  const RecentNoteCard({
     super.key,
-    required this.icon,
-    required this.label,
+    required this.title,
+    required this.subtitle,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      width: 160,
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(25),
+        color: kCardColor,
+        borderRadius: BorderRadius.circular(12),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
+      child: Column(
         children: [
-          Icon(icon, color: Colors.grey[600], size: 20),
-          SizedBox(width: 4),
-          Text(
-            label,
-            style: TextStyle(
-              color: Colors.grey[600],
-              fontSize: 16,
+          Expanded(
+            child: Container(
+              margin: EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Center(
+                child: Icon(
+                  Icons.description,
+                  size: 48,
+                  color: Colors.grey[400],
+                ),
+              ),
+            ),
+          ),
+          Container(
+            padding: EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    color: Colors.grey,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class NoteThumbnailWithCache extends StatefulWidget {
+  final String noteId;
+  final String fileUrl;
+  final String fileType;
+
+  const NoteThumbnailWithCache({
+    super.key,
+    required this.noteId,
+    required this.fileUrl,
+    required this.fileType,
+  });
+
+  @override
+  State<NoteThumbnailWithCache> createState() => _NoteThumbnailWithCacheState();
+}
+
+class _NoteThumbnailWithCacheState extends State<NoteThumbnailWithCache> {
+  Uint8List? _pdf;
+  String? _docx;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    // 1) cache first
+    _pdf = NoteThumbnailCache.getPdf(widget.noteId);
+    _docx = NoteThumbnailCache.getDocx(widget.noteId);
+
+    if (_pdf != null || _docx != null) {
+      if (mounted) setState(() {});
+      return;
+    }
+
+    try {
+      final type = widget.fileType.toLowerCase();
+
+      if (type == 'pdf') {
+        final bytes = await generatePdfThumbnail(widget.fileUrl);
+        if (!mounted) return;
+        NoteThumbnailCache.setPdf(widget.noteId, bytes);
+        _pdf = bytes;
+      } else if (type == 'docx') {
+        final text = await generateDocxPreview(widget.fileUrl);
+        if (!mounted) return;
+        NoteThumbnailCache.setDocx(widget.noteId, text);
+        _docx = text;
+      }
+
+      if (mounted) setState(() {});
+    } catch (e) {
+      debugPrint('Thumbnail load error: $e');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return NoteThumbnail(
+      noteId: widget.noteId,
+      fileType: widget.fileType,
+      pdfThumbnail: _pdf,
+      docxPreviewText: _docx,
+    );
+  }
+}
+
+  NoteItem _communityToNoteItem(NotePreview note) {
+    return NoteItem(
+      id: note.id,
+      title: note.title.isNotEmpty ? note.title : 'Untitled',
+      description: '',
+      fileUrl: note.fileUrl,
+      fileType: note.fileType,
+      updatedAt: note.updatedAt,
+      createdAt: note.updatedAt,
+      tags: const [],
+      author: note.authorName,
+    );
+  }
+
+
+ class _CommunityGridCard extends StatelessWidget {
+  final NotePreview note;
+
+  const _CommunityGridCard({required this.note});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: () async {
+        // Try to reuse cached thumbnails
+        final pdfThumb = NoteThumbnailCache.getPdf(note.id);
+        final docxPreview = NoteThumbnailCache.getDocx(note.id);
+
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => NotePreviewPage(
+              note: _communityToNoteItem(note),
+              pdfThumbnail: pdfThumb,
+              docxPreviewText: docxPreview,
+              pdfBytes: null, // load fullscreen later if needed
+            ),
+          ),
+        );
+      },
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: NoteThumbnailWithCache(
+                noteId: note.id,
+                fileUrl: note.fileUrl,
+                fileType: note.fileType,
+              ),
+            ),
+
+            // Author avatar
+            Positioned(
+              left: 8,
+              bottom: 8,
+              child: CircleAvatar(
+                radius: 14,
+                backgroundColor: Colors.black.withOpacity(0.5),
+                child: const Icon(
+                  Icons.person,
+                  size: 14,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

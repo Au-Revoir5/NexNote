@@ -3,7 +3,6 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'landing/landing.dart';
 import 'backend/supabase_config.dart';
 
-// ✅ Global ScaffoldMessenger key (for SnackBars without context)
 final GlobalKey<ScaffoldMessengerState> rootMessengerKey =
     GlobalKey<ScaffoldMessengerState>();
 
@@ -25,7 +24,6 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'NexNote',
 
-      // ✅ THIS IS THE IMPORTANT LINE
       scaffoldMessengerKey: rootMessengerKey,
 
       theme: ThemeData.dark().copyWith(
