@@ -1,5 +1,27 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.example.nexnote">
 
+    <!-- ============================= -->
+    <!-- Storage permissions -->
+    <!-- ============================= -->
+
+    <!-- Android 12 and below -->
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+
+    <!-- Android 13+ (required for shared storage access) -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
+
+    <!-- ============================= -->
+    <!-- App -->
+    <!-- ============================= -->
     <application
         android:label="nexnote"
         android:name="androidx.multidex.MultiDexApplication"
@@ -32,7 +54,9 @@
 
     </application>
 
-    <!-- Required for PROCESS_TEXT support -->
+    <!-- ============================= -->
+    <!-- Required for PROCESS_TEXT -->
+    <!-- ============================= -->
     <queries>
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>

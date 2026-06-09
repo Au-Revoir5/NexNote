@@ -115,6 +115,13 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - Fonts powered by Google Fonts (Poppins).
 - Inspired by modern productivity apps like Notion and Evernote.
 
+## Contributors
+- Au-Revoir5
+- Sedoxus
+- Polymari
+- Alezaandria
+- Clarineckt
+
 ## 📞 Support
 Questions? Open an issue or reach out on [GitHub Discussions](https://github.com/yourusername/nexnote/discussions).
 
