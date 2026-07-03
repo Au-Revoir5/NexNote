@@ -4,7 +4,7 @@ import '../main/home.dart';
 import '../main/my_notes.dart';
 import '../main/search.dart';
 import '../main/add.dart';
-import '../main/tools.dart';
+import '../side/favorites.dart'; 
 import 'package:nexnote/side/profile.dart';
 
 // Constants for reuse
@@ -46,7 +46,7 @@ class _BottomBarState extends State<BottomBar> {
           });
         },
       ),
-      EnhanceCompareCombinePage(),
+      const FavoritesPage(showAppBar: false),
       NotesPage(
         onSelectionModeChanged: (isSelecting) {
           setState(() {
@@ -211,7 +211,7 @@ class _BottomBarState extends State<BottomBar> {
                               _buildTabItem(icon: Icons.home, index: 0, label: 'Home'),
                               _buildTabItem(icon: Icons.search, index: 1, label: 'Search'),
                               _buildCenterLabel(index: 2, label: 'Add'),
-                              _buildTabItem(icon: Icons.build, index: 3, label: 'Tools'),
+                              _buildTabItem(icon: Icons.star, index: 3, label: 'Favorites'), // ⬅️ changed
                               _buildTabItem(icon: Icons.note, index: 4, label: 'Notes'),
                             ],
                           ),
@@ -259,7 +259,7 @@ class _BottomBarState extends State<BottomBar> {
       case 1:
         return ''; // Search
       case 2:
-        return ''; // Tools
+        return 'My Favorites'; // Favorites
       case 3:
         return 'My Notes';
       default:
@@ -273,8 +273,8 @@ class _BottomBarState extends State<BottomBar> {
     required String label,
   }) {
     // Map bottom bar index to page index for selection highlight
-    // Bottom bar: 0=Home, 1=Search, 2=Add, 3=Tools, 4=Notes
-    // Pages: 0=Home, 1=Search, 2=Tools, 3=Notes
+    // Bottom bar: 0=Home, 1=Search, 2=Add, 3=Favorites, 4=Notes
+    // Pages: 0=Home, 1=Search, 2=Favorites, 3=Notes
     int pageIndex;
     if (index < 2) {
       pageIndex = index;

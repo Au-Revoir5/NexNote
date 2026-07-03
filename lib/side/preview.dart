@@ -3,10 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:nexnote/backend/file_opener.dart';
 import 'package:nexnote/main/search.dart';
 import 'package:nexnote/backend/fullscreen_pdf_page.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 const kPrimaryColor = Color(0xFF6366F1);
 const kDarkSurface = Color(0xFF1A1A1A);
 const kPagePadding = EdgeInsets.symmetric(horizontal: 20);
+const kAccentYellow = Color(0xFFFBBF24);
 
 class NotePreviewPage extends StatelessWidget {
   final NoteItem note;
@@ -283,11 +285,138 @@ class _Placeholder extends StatelessWidget {
   }
 }
 
-
-class _ActionSection extends StatelessWidget {
+class _ActionSection extends StatefulWidget {
   final NoteItem note;
 
   const _ActionSection(this.note);
+
+  @override
+  State<_ActionSection> createState() => _ActionSectionState();
+}
+
+class _ActionSectionState extends State<_ActionSection> {
+  final _supabase = Supabase.instance.client;
+  bool _isFavorited = false;
+  bool _isSaved = false;
+  bool _loadingFav = true;
+  bool _loadingSave = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadStatus();
+  }
+
+  Future<void> _loadStatus() async {
+    final user = _supabase.auth.currentUser;
+    if (user == null) {
+      setState(() {
+        _loadingFav = false;
+        _loadingSave = false;
+      });
+      return;
+    }
+
+    try {
+      final favRes = await _supabase
+          .from('favorites')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('note_id', widget.note.id)
+          .maybeSingle();
+
+      final saveRes = await _supabase
+          .from('saved_notes')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('note_id', widget.note.id)
+          .maybeSingle();
+
+      if (!mounted) return;
+      setState(() {
+        _isFavorited = favRes != null;
+        _isSaved = saveRes != null;
+        _loadingFav = false;
+        _loadingSave = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loadingFav = false;
+        _loadingSave = false;
+      });
+    }
+  }
+
+  Future<void> _toggleFavorite() async {
+    final user = _supabase.auth.currentUser;
+    if (user == null) {
+      _showSnack('Please sign in to favorite notes');
+      return;
+    }
+
+    final prevState = _isFavorited;
+    setState(() => _isFavorited = !_isFavorited); // optimistic
+
+    try {
+      if (prevState) {
+        await _supabase
+            .from('favorites')
+            .delete()
+            .eq('user_id', user.id)
+            .eq('note_id', widget.note.id);
+      } else {
+        await _supabase.from('favorites').insert({
+          'user_id': user.id,
+          'note_id': widget.note.id,
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isFavorited = prevState); // revert on failure
+      _showSnack('Failed to update favorite: $e');
+    }
+  }
+
+  Future<void> _toggleSave() async {
+    final user = _supabase.auth.currentUser;
+    if (user == null) {
+      _showSnack('Please sign in to save notes');
+      return;
+    }
+
+    final prevState = _isSaved;
+    setState(() => _isSaved = !_isSaved); // optimistic
+
+    try {
+      if (prevState) {
+        await _supabase
+            .from('saved_notes')
+            .delete()
+            .eq('user_id', user.id)
+            .eq('note_id', widget.note.id);
+      } else {
+        await _supabase.from('saved_notes').insert({
+          'user_id': user.id,
+          'note_id': widget.note.id,
+        });
+      }
+
+      if (mounted) {
+        _showSnack(prevState ? 'Removed from saved notes' : 'Saved to your library');
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isSaved = prevState); // revert on failure
+      _showSnack('Failed to update saved notes: $e');
+    }
+  }
+
+  void _showSnack(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg)),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -295,14 +424,71 @@ class _ActionSection extends StatelessWidget {
       padding: const EdgeInsets.all(20),
       child: Column(
         children: [
+          // ---- Favorite + Save row ----
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _loadingFav ? null : _toggleFavorite,
+                  icon: Icon(
+                    _isFavorited ? Icons.star : Icons.star_border,
+                    color: _isFavorited ? kAccentYellow : Colors.grey[400],
+                  ),
+                  label: Text(
+                    _isFavorited ? 'Favorited' : 'Favorite',
+                    style: TextStyle(
+                      color: _isFavorited ? kAccentYellow : Colors.grey[300],
+                    ),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    side: BorderSide(
+                      color: _isFavorited ? kAccentYellow : Colors.grey[700]!,
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _loadingSave ? null : _toggleSave,
+                  icon: Icon(
+                    _isSaved ? Icons.bookmark : Icons.bookmark_border,
+                    color: _isSaved ? kPrimaryColor : Colors.grey[400],
+                  ),
+                  label: Text(
+                    _isSaved ? 'Saved' : 'Save',
+                    style: TextStyle(
+                      color: _isSaved ? kPrimaryColor : Colors.grey[300],
+                    ),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    side: BorderSide(
+                      color: _isSaved ? kPrimaryColor : Colors.grey[700]!,
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // ---- Open / Download (unchanged) ----
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
               onPressed: () {
                 FileOpener.openFile(
                   context,
-                  note.fileUrl,
-                  '${note.title}.${note.fileType}',
+                  widget.note.fileUrl,
+                  '${widget.note.title}.${widget.note.fileType}',
                 );
               },
               style: ElevatedButton.styleFrom(
@@ -328,8 +514,8 @@ class _ActionSection extends StatelessWidget {
               onPressed: () {
                 FileOpener.downloadFileWithProgress(
                   context,
-                  note.fileUrl,
-                  '${note.title}.${note.fileType}',
+                  widget.note.fileUrl,
+                  '${widget.note.title}.${widget.note.fileType}',
                 );
               },
             ),

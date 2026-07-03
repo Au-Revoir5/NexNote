@@ -29,10 +29,94 @@ class _NotesPageState extends State<NotesPage> {
   
   List<Map<String, dynamic>> _notes = [];
   List<Map<String, dynamic>> _filteredNotes = [];
+  List<Map<String, dynamic>> _savedNotes = [];
+  bool _isLoadingSaved = true;
   bool _isLoading = true;
 
   final Set<String> _selectedNoteIds = {};
   bool _selectionMode = false;
+
+  Future<void> _loadSavedNotes() async {
+  setState(() => _isLoadingSaved = true);
+
+  final user = _supabase.auth.currentUser;
+  if (user == null) {
+    setState(() => _isLoadingSaved = false);
+    return;
+  }
+
+  try {
+    final response = await _supabase
+        .from('saved_notes')
+        .select('''
+          note_id,
+          created_at,
+          notes (
+            id,
+            title,
+            file_url,
+            file_type,
+            is_public,
+            updated_at,
+            publisher_id,
+            profiles:publisher_id ( username, avatar_url )
+          )
+        ''')
+        .eq('user_id', user.id)
+        .order('created_at', ascending: false);
+
+    final saved = (response as List)
+        .where((row) => row['notes'] != null)
+        .map((row) {
+          final note = row['notes'];
+          return {
+            'id': note['id'],
+            'title': note['title'] ?? 'Untitled',
+            'file_url': note['file_url'],
+            'file_type': note['file_type'],
+            'updated_at': note['updated_at'],
+            'author_name': note['profiles']?['username'] ?? 'Anonymous',
+          };
+        })
+        .toList();
+
+    if (!mounted) return;
+    setState(() {
+      _savedNotes = List<Map<String, dynamic>>.from(saved);
+      _isLoadingSaved = false;
+    });
+  } catch (e) {
+    if (!mounted) return;
+    setState(() => _isLoadingSaved = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Error loading saved notes: $e')),
+    );
+  }
+}
+
+Future<void> _unsaveNote(String noteId) async {
+  final user = _supabase.auth.currentUser;
+  if (user == null) return;
+
+  try {
+    await _supabase
+        .from('saved_notes')
+        .delete()
+        .eq('user_id', user.id)
+        .eq('note_id', noteId);
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Removed from saved notes')),
+    );
+    _loadSavedNotes();
+  } catch (e) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Failed to unsave note: $e')),
+    );
+  }
+}
 
   Widget _buildSelectionToolbar() {
     return IgnorePointer(
@@ -312,7 +396,7 @@ class _NotesPageState extends State<NotesPage> {
               const SizedBox(height: 12),
               const Divider(),
 
-              // ⭐ Add to starred
+              // Add to starred
               _buildBottomSheetAction(
                 icon: Icons.star_border,
                 label: allStarred ? 'Remove from starred' : 'Add to starred',
@@ -324,7 +408,7 @@ class _NotesPageState extends State<NotesPage> {
                 },
               ),
 
-              // 📁 Move to folder
+              // Move to folder
               _buildBottomSheetAction(
                 icon: Icons.folder_open_outlined,
                 label: 'Move to folder',
@@ -359,6 +443,7 @@ class _NotesPageState extends State<NotesPage> {
   void initState() {
     super.initState();
     _loadNotes();
+    _loadSavedNotes();
     _searchController.addListener(_filterNotes);
   }
 
@@ -588,7 +673,9 @@ class _NotesPageState extends State<NotesPage> {
                   )
                 : RefreshIndicator(
                     color: kPrimaryColor,
-                    onRefresh: _loadNotes,
+                    onRefresh: () async {
+                      await Future.wait([_loadNotes(), _loadSavedNotes()]);
+                    },
                     child: GestureDetector(
                       behavior: HitTestBehavior.translucent,
                       onTap: _selectionMode ? _clearSelection : null,
@@ -766,6 +853,58 @@ class _NotesPageState extends State<NotesPage> {
                                   );
                                 },
                               ),
+                            if (_savedNotes.isNotEmpty || _isLoadingSaved) ...[
+                              const SizedBox(height: 32),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Text(
+                                    'Saved from Community',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  Text(
+                                    '${_savedNotes.length} note${_savedNotes.length != 1 ? 's' : ''}',
+                                    style: const TextStyle(
+                                      color: Colors.grey,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 16),
+                              if (_isLoadingSaved)
+                                const Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 20),
+                                  child: Center(
+                                    child: CircularProgressIndicator(color: kPrimaryColor),
+                                  ),
+                                )
+                              else
+                                ListView.builder(
+                                  shrinkWrap: true,
+                                  physics: const NeverScrollableScrollPhysics(),
+                                  itemCount: _savedNotes.length,
+                                  itemBuilder: (context, index) {
+                                    final note = _savedNotes[index];
+                                    return _SavedNoteTile(
+                                      note: note,
+                                      timeAgo: _getTimeAgo(note['updated_at']),
+                                      onTap: () {
+                                        FileOpener.openFile(
+                                          context,
+                                          note['file_url'],
+                                          '${note['title']}.${note['file_type']}',
+                                        );
+                                      },
+                                      onUnsave: () => _unsaveNote(note['id']),
+                                    );
+                                  },
+                                ),
+                            ],
                             const SizedBox(height: 100),
                           ],
                         ),
@@ -918,6 +1057,90 @@ class NoteItem extends StatefulWidget {
   State<NoteItem> createState() => _NoteItemState();
 }
 
+class _SavedNoteTile extends StatelessWidget {
+  final Map<String, dynamic> note;
+  final String timeAgo;
+  final VoidCallback onTap;
+  final VoidCallback onUnsave;
+
+  const _SavedNoteTile({
+    required this.note,
+    required this.timeAgo,
+    required this.onTap,
+    required this.onUnsave,
+  });
+
+  IconData _getFileIcon() {
+    switch (note['file_type']?.toString().toLowerCase()) {
+      case 'pdf':
+        return Icons.picture_as_pdf;
+      case 'docx':
+        return Icons.description;
+      default:
+        return Icons.insert_drive_file;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: kCardColor,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: const Color(0xFF3C3C3E),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(_getFileIcon(), color: Colors.white, size: 20),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    note['title'] ?? 'Untitled',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'by ${note['author_name']} • $timeAgo',
+                    style: const TextStyle(color: Colors.grey, fontSize: 13),
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.bookmark_remove_outlined, color: Colors.grey),
+              splashRadius: 20,
+              onPressed: onUnsave,
+              tooltip: 'Remove from saved',
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _NoteItemState extends State<NoteItem>
     with SingleTickerProviderStateMixin {
   late bool isFavorite;
@@ -1031,6 +1254,7 @@ class _NoteItemState extends State<NoteItem>
       );
     }
   }
+  
 
   void _showEditDialog(BuildContext context) {
     final TextEditingController titleController = TextEditingController(text: widget.title);

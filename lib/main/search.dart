@@ -31,8 +31,8 @@ class SearchPage extends StatefulWidget {
 class _SearchPageState extends State<SearchPage> {
   final TextEditingController _searchController = TextEditingController();
   final supabase = Supabase.instance.client;
-  final FocusNode _searchFocusNode = FocusNode(); 
-  bool _isSearching = false;  
+  final FocusNode _searchFocusNode = FocusNode();
+  bool _isSearching = false;
 
   String sortBy = "Last Edited (Recent)";
   List<NoteItem> notes = [];
@@ -67,14 +67,12 @@ class _SearchPageState extends State<SearchPage> {
     }
   }
 
-
   @override
   void dispose() {
     _searchController.dispose();
     _searchFocusNode.dispose();
     super.dispose();
   }
-
 
   Future<void> _fetchPublicNotes() async {
     try {
@@ -83,8 +81,8 @@ class _SearchPageState extends State<SearchPage> {
       });
 
       final response = await supabase
-        .from('notes')
-        .select('''
+          .from('notes')
+          .select('''
         id,
         title,
         description,
@@ -99,9 +97,8 @@ class _SearchPageState extends State<SearchPage> {
           avatar_url
           )
         ''')
-        .eq('is_public', true)
-        .order('updated_at', ascending: false);
-
+          .eq('is_public', true)
+          .order('updated_at', ascending: false);
 
       final fetchedNotes = (response as List).map((note) {
         final isPublic = note['is_public'] == true;
@@ -120,7 +117,6 @@ class _SearchPageState extends State<SearchPage> {
           createdAt: DateTime.parse(note['created_at']),
           updatedAt: DateTime.parse(note['updated_at']),
         );
-
       }).toList();
 
       setState(() {
@@ -149,15 +145,16 @@ class _SearchPageState extends State<SearchPage> {
         filteredNotes = List.from(notes);
       } else {
         filteredNotes = notes.where((note) {
-          final titleMatch = note.title.toLowerCase().contains(query.toLowerCase());
-          final tagMatch = note.tags.any((tag) => tag.toLowerCase().contains(query.toLowerCase()));
+          final titleMatch =
+              note.title.toLowerCase().contains(query.toLowerCase());
+          final tagMatch = note.tags
+              .any((tag) => tag.toLowerCase().contains(query.toLowerCase()));
           return titleMatch || tagMatch;
         }).toList();
       }
       _sortNotes();
     });
   }
-
 
   void _sortNotes() {
     setState(() {
@@ -245,34 +242,35 @@ class _SearchPageState extends State<SearchPage> {
                         duration: const Duration(milliseconds: 90),
                         child: _isSearching
                             ? const SizedBox.shrink()
-                            : const Padding(
-                                key: ValueKey('search-header'),
-                                padding: EdgeInsets.symmetric(horizontal: 16.0),
+                            : Padding(
+                                key: const ValueKey('search-header'),
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 16.0),
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(
-                                      'Find Notes You Need',
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 32,
-                                        fontWeight: FontWeight.bold,
-                                      ),
+                                    Row(
+                                      children: [
+                                   
+                                        const SizedBox(width: 10),
+                                        const Text(
+                                          'Find Notes You Need',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 32,
+                                            fontWeight: FontWeight.bold,
+                                            letterSpacing: -0.5,
+                                          ),
+                                        ),
+                                      ],
                                     ),
-                                    SizedBox(height: 8),
+                                    const SizedBox(height: 10),
                                     Text(
-                                      '"Learning never exhausts the mind."',
+                                      '"Learning never exhausts the mind." — Leonardo da Vinci',
                                       style: TextStyle(
-                                        color: Colors.white70,
-                                        fontSize: 16,
+                                        color: Colors.grey[500],
+                                        fontSize: 13,
                                         fontStyle: FontStyle.italic,
-                                      ),
-                                    ),
-                                    Text(
-                                      '~ Leonardo da Vinci',
-                                      style: TextStyle(
-                                        color: Colors.white70,
-                                        fontSize: 14,
                                       ),
                                     ),
                                   ],
@@ -298,10 +296,11 @@ class _SearchPageState extends State<SearchPage> {
                                   focusNode: _searchFocusNode,
                                   onChanged: (value) {
                                     _filterNotes(value);
-                                    widget.onSearchingChanged?.call(value.isNotEmpty);
+                                    widget.onSearchingChanged
+                                        ?.call(value.isNotEmpty);
                                     setState(() {
-                                      _isSearching =
-                                          value.isNotEmpty || _searchFocusNode.hasFocus;
+                                      _isSearching = value.isNotEmpty ||
+                                          _searchFocusNode.hasFocus;
                                     });
                                   },
                                   style: TextStyle(
@@ -314,11 +313,14 @@ class _SearchPageState extends State<SearchPage> {
                                     hintText: 'Search',
                                     hintStyle: TextStyle(color: Colors.grey),
                                     prefixIcon: AnimatedSwitcher(
-                                      duration: const Duration(milliseconds: 90),
+                                      duration:
+                                          const Duration(milliseconds: 90),
                                       child: _isSearching
                                           ? IconButton(
                                               key: const ValueKey('back'),
-                                              icon: const Icon(Icons.arrow_back, color: Colors.grey),
+                                              icon: const Icon(
+                                                  Icons.arrow_back,
+                                                  color: Colors.grey),
                                               onPressed: () {
                                                 _searchController.clear();
                                                 _filterNotes('');
@@ -344,15 +346,17 @@ class _SearchPageState extends State<SearchPage> {
                               ),
                             ),
                             const SizedBox(width: 8),
-                            Container(
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(25),
-                              ),
-                              child: IconButton(
-                                onPressed: _showSortOptions,
-                                icon: const Icon(Icons.sort, color: Colors.grey),
-                                padding: const EdgeInsets.all(12),
+                            GestureDetector(
+                              onTap: _showSortOptions,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 14, vertical: 12),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(25),
+                                ),
+                                child: const Icon(Icons.tune,
+                                    color: Colors.grey, size: 20),
                               ),
                             ),
                           ],
@@ -376,19 +380,37 @@ class _SearchPageState extends State<SearchPage> {
                                       padding: const EdgeInsets.all(32.0),
                                       child: Column(
                                         children: [
-                                          Icon(
-                                            Icons.search_off,
-                                            size: 64,
-                                            color: Colors.grey[600],
+                                          Container(
+                                            padding: const EdgeInsets.all(20),
+                                            decoration: BoxDecoration(
+                                              color: kCardColor,
+                                              shape: BoxShape.circle,
+                                            ),
+                                            child: Icon(
+                                              Icons.search_off,
+                                              size: 40,
+                                              color: Colors.grey[600],
+                                            ),
                                           ),
-                                          const SizedBox(height: 16),
+                                          const SizedBox(height: 20),
                                           Text(
                                             _searchController.text.isEmpty
                                                 ? 'No public notes available'
                                                 : 'No notes found',
                                             style: TextStyle(
-                                              color: Colors.grey[400],
+                                              color: Colors.grey[300],
                                               fontSize: 16,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 6),
+                                          Text(
+                                            _searchController.text.isEmpty
+                                                ? 'Check back later for shared notes'
+                                                : 'Try a different search term',
+                                            style: TextStyle(
+                                              color: Colors.grey[600],
+                                              fontSize: 13,
                                             ),
                                           ),
                                         ],
@@ -397,14 +419,15 @@ class _SearchPageState extends State<SearchPage> {
                                   )
                                 : GridView.builder(
                                     shrinkWrap: true,
-                                    physics: const NeverScrollableScrollPhysics(),
+                                    physics:
+                                        const NeverScrollableScrollPhysics(),
                                     itemCount: filteredNotes.length,
                                     gridDelegate:
                                         const SliverGridDelegateWithFixedCrossAxisCount(
                                       crossAxisCount: 2,
                                       crossAxisSpacing: 12,
                                       mainAxisSpacing: 12,
-                                      childAspectRatio: 0.8,
+                                      childAspectRatio: 0.85,
                                     ),
                                     itemBuilder: (context, index) {
                                       return NoteCard(
@@ -426,6 +449,7 @@ class _SearchPageState extends State<SearchPage> {
                                     },
                                   ),
                       ),
+                      SizedBox(height: 40),
                     ],
                   ),
                 ),
@@ -539,7 +563,6 @@ class _NoteCardState extends State<NoteCard> {
           _thumbnailBytes = bytes;
           _isLoadingThumbnail = false;
         });
-
       } else if (type == 'docx') {
         debugPrint('Generating DOCX preview for ${widget.note.id}');
         final text = await generateDocxPreview(widget.note.fileUrl);
@@ -553,12 +576,10 @@ class _NoteCardState extends State<NoteCard> {
           _isLoadingThumbnail = false;
         });
 
-        // 🔥 FORCE repaint after async layout settles
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) setState(() {});
         });
-      }
-      else {
+      } else {
         debugPrint('Unsupported file type: $type');
         setState(() {
           _isLoadingThumbnail = false;
@@ -580,117 +601,193 @@ class _NoteCardState extends State<NoteCard> {
     return GestureDetector(
       onTap: () {
         if (_isLoadingThumbnail) return;
-
-        widget.onTap(
-          _thumbnailBytes,
-          _docxPreviewText,
-          _pdfBytes,
-        );
+        widget.onTap(_thumbnailBytes, _docxPreviewText, _pdfBytes);
       },
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.1),
-              blurRadius: 4,
-              offset: const Offset(0, 2),
+              color: Colors.black.withOpacity(0.25),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
             ),
           ],
         ),
-        child: Stack(
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: _buildThumbnailWidget(),
-            ),
-            Positioned(
-              bottom: 0,
-              left: 0,
-              right: 0,
-              child: Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.7),
-                  borderRadius: const BorderRadius.only(
-                    bottomLeft: Radius.circular(12),
-                    bottomRight: Radius.circular(12),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              _buildThumbnailWidget(),
+
+              Positioned.fill(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.transparent,
+                        Colors.transparent,
+                        Colors.black.withOpacity(0.75),
+                      ],
+                      stops: const [0.0, 0.45, 1.0],
+                    ),
                   ),
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      widget.note.title,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      widget.note.author,
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 12,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    if (widget.note.tags.isNotEmpty) ...[
-                      const SizedBox(height: 4),
-                      Wrap(
-                        spacing: 4,
-                        children: widget.note.tags.take(2).map((tag) {
-                          return Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: kPrimaryColor.withValues(alpha: 0.3),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              tag,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 10,
-                              ),
-                            ),
-                          );
-                        }).toList(),
+              ),
+
+              Positioned(
+                top: 10,
+                left: 10,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: _fileTypeColor().withOpacity(0.9),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(_fileTypeIcon(), color: Colors.white, size: 11),
+                      const SizedBox(width: 4),
+                      Text(
+                        widget.note.fileType.toUpperCase(),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.3,
+                        ),
                       ),
                     ],
-                  ],
+                  ),
                 ),
               ),
-            ),
-            Positioned(
-              top: 8,
-              right: 8,
-              child: Container(
-                padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.5),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(
-                  Icons.more_vert,
-                  color: Colors.white,
-                  size: 20,
+
+              Positioned(
+                bottom: 0,
+                left: 0,
+                right: 0,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (widget.note.tags.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 6),
+                          child: Wrap(
+                            spacing: 4,
+                            runSpacing: 4,
+                            children: widget.note.tags.take(2).map((tag) {
+                              return Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 7,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.15),
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(
+                                    color: Colors.white.withOpacity(0.25),
+                                    width: 0.5,
+                                  ),
+                                ),
+                                child: Text(
+                                  tag,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              );
+                            }).toList(),
+                          ),
+                        ),
+                      Text(
+                        widget.note.title,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          height: 1.15,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 3),
+                      Row(
+                        children: [
+                          const Icon(Icons.person_outline,
+                              size: 11, color: Colors.white60),
+                          const SizedBox(width: 3),
+                          Expanded(
+                            child: Text(
+                              widget.note.author.replaceFirst('Made by ', ''),
+                              style: const TextStyle(
+                                color: Colors.white60,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
+
+              if (_isLoadingThumbnail)
+                Positioned.fill(
+                  child: Container(
+                    color: Colors.black.withOpacity(0.3),
+                    child: const Center(
+                      child: SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white70,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );
+  }
+
+  Color _fileTypeColor() {
+    switch (widget.note.fileType.toLowerCase()) {
+      case 'pdf':
+        return const Color(0xFFE53935);
+      case 'docx':
+        return const Color(0xFF1E88E5);
+      default:
+        return kPrimaryColor;
+    }
+  }
+
+  IconData _fileTypeIcon() {
+    switch (widget.note.fileType.toLowerCase()) {
+      case 'pdf':
+        return Icons.picture_as_pdf;
+      case 'docx':
+        return Icons.description;
+      default:
+        return Icons.insert_drive_file;
+    }
   }
 
   Widget _buildThumbnailWidget() {

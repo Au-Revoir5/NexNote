@@ -89,19 +89,38 @@ class SupabaseHomeNotesProvider implements HomeNotesProvider {
     final user = _supabase.auth.currentUser;
     if (user == null) return [];
 
-    final res = await _supabase
-        .from('favorites')
-        .select('notes(id, title, updated_at, is_public, file_url, file_type)')
-        .eq('user_id', user.id)
-        .order('notes.updated_at', ascending: false)
-        .limit(10);
+    try {
+      final res = await _supabase
+          .from('favorites')
+          .select('''
+            notes(
+              id,
+              title,
+              updated_at,
+              is_public,
+              file_url,
+              file_type,
+              publisher_id,
+              profiles:publisher_id (
+                username,
+                avatar_url
+              )
+            )
+          ''')
+          .eq('user_id', user.id)
+          .order('updated_at', referencedTable: 'notes', ascending: false)
+          .limit(10);
 
-    final list = res as List<dynamic>;
+      final list = res as List<dynamic>;
 
-    return list
-        .where((row) => row['notes'] != null)
-        .map((row) => _mapNote(row['notes'] as Map<String, dynamic>))
-        .toList();
+      return list
+          .where((row) => row['notes'] != null)
+          .map((row) => _mapNote(row['notes'] as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      print('🔴 favoriteNotes() error: $e');
+      return [];
+    }
   }
 
   // ---------------- MAPPER ----------------
