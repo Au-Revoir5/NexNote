@@ -355,20 +355,6 @@ class _LoginPageState extends State<LoginPage> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  icon: _isGoogleLoading
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: kPrimaryColor,
-                          ),
-                        )
-                      : Image.network(
-                          'https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg',
-                          width: 20,
-                          height: 20,
-                        ),
                   label: Text(
                     _isGoogleLoading ? 'Signing in...' : 'Continue with Google',
                     style: TextStyle(
