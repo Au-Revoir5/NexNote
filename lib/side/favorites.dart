@@ -14,7 +14,9 @@ const kCardColor = Color(0xFF2C2C2E);
 const kAccentYellow = Color(0xFFFBBF24);
 
 class FavoritesPage extends StatefulWidget {
-  const FavoritesPage({super.key});
+  final bool showAppBar;
+
+  const FavoritesPage({super.key, this.showAppBar = true});
 
   @override
   _FavoritesPageState createState() => _FavoritesPageState();
@@ -33,6 +35,10 @@ class _FavoritesPageState extends State<FavoritesPage> {
   void initState() {
     super.initState();
     _loadFavorites();
+  }
+  bool _isOwner(Map<String, dynamic> note) {
+    final currentUserId = _supabase.auth.currentUser?.id;
+    return currentUserId != null && note['owner_id'] == currentUserId;
   }
 
   Future<void> _loadFavorites() async {
@@ -61,6 +67,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
           'is_public': note['is_public'],
           'updated_at': note['updated_at'],
           'created_at': note['created_at'],
+          'owner_id': note['user_id'],
         };
       }).toList();
 
@@ -163,22 +170,24 @@ class _FavoritesPageState extends State<FavoritesPage> {
 
     return Scaffold(
       backgroundColor: kDarkSurface,
-      appBar: AppBar(
-        backgroundColor: kDarkSurface,
-        elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: Colors.white, size: iconSize),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Text(
-          "My Favorites",
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 18 * textScale,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ),
+      appBar: widget.showAppBar
+          ? AppBar(
+              backgroundColor: kDarkSurface,
+              elevation: 0,
+              leading: IconButton(
+                icon: Icon(Icons.arrow_back, color: Colors.white, size: iconSize),
+                onPressed: () => Navigator.pop(context),
+              ),
+              title: Text(
+                "My Favorites",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18 * textScale,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            )
+          : null,
       body: _isLoading
           ? const Center(child: CircularProgressIndicator(color: kPrimaryColor))
           : Column(
@@ -380,24 +389,25 @@ class _FavoritesPageState extends State<FavoritesPage> {
 
 
   void _showItemMenu(Map<String, dynamic> note) {
-    showModalBottomSheet(
-      backgroundColor: kCardColor,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setSheetState) => Padding(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
+  final isOwner = _isOwner(note);
 
-            _buildOption(context, Icons.edit, "Edit note", () {
-              Navigator.pop(context);
-              _showEditDialog(note);
-            }),
-
+  showModalBottomSheet(
+    backgroundColor: kCardColor,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+    ),
+    context: context,
+    builder: (context) => StatefulBuilder(
+      builder: (context, setSheetState) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (isOwner)
+              _buildOption(context, Icons.edit, "Edit note", () {
+                Navigator.pop(context);
+                _showEditDialog(note);
+              }),
 
             _buildOption(context, Icons.share, "Share", () async {
               Navigator.pop(context);
@@ -453,25 +463,19 @@ class _FavoritesPageState extends State<FavoritesPage> {
                     ClipboardData(text: signedUrl),
                   );
 
-                  // inline visual feedback
                   setSheetState(() {
                     _copiedNoteId = note['id'];
                   });
 
-                  // optional but recommended
                   HapticFeedback.lightImpact();
 
-                  // auto reset
-                  // cancel previous timer if exists
                   _copyResetTimer?.cancel();
-
                   _copyResetTimer = Timer(const Duration(seconds: 5), () {
                     if (!mounted) return;
                     setSheetState(() {
                       _copiedNoteId = null;
                     });
                   });
-
                 } catch (e) {
                   if (!mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -493,22 +497,37 @@ class _FavoritesPageState extends State<FavoritesPage> {
 
             const Divider(color: Colors.grey),
 
-            _buildOption(
-              context,
-              Icons.delete,
-              "Delete",
-              () {
-                Navigator.pop(context);
-                _showDeleteConfirmation(note);
-              },
-              isDestructive: true,
-            ),
+            if (isOwner)
+              _buildOption(
+                context,
+                Icons.delete,
+                "Delete",
+                () {
+                  Navigator.pop(context);
+                  _showDeleteConfirmation(note);
+                },
+                isDestructive: true,
+              )
+            else
+              _buildOption(
+                context,
+                Icons.report_outlined,
+                "Report note",
+                () {
+                  Navigator.pop(context);
+                  // TODO: wire up reporting flow if you have one
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Report submitted')),
+                  );
+                },
+                isDestructive: true,
+              ),
           ],
         ),
       ),
-      )
-    );
-  }
+    ),
+  );
+}
 
   void _showEditDialog(Map<String, dynamic> note) {
     final TextEditingController titleController =
@@ -1060,7 +1079,6 @@ class _NoteThumbnailWithCacheState extends State<NoteThumbnailWithCache> {
   }
 
   Future<void> _load() async {
-    // 1️⃣ cache first
     _pdf = NoteThumbnailCache.getPdf(widget.noteId);
     _docx = NoteThumbnailCache.getDocx(widget.noteId);
 

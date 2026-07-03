@@ -8,6 +8,7 @@ import '../backend/file_opener.dart';
 import 'dart:typed_data';
 import '../side/preview.dart';
 import '../main/search.dart' show NoteItem;
+import '../side/favorites.dart';
 
 
 // Constants for reuse
@@ -92,7 +93,7 @@ class _HomePageState extends State<HomePage>
 
   Widget _horizontalLoader() {
     return const SizedBox(
-      height: 220,
+      height: 180,
       child: Center(
         child: CircularProgressIndicator(color: kPrimaryColor),
       ),
@@ -398,101 +399,35 @@ class _HomePageState extends State<HomePage>
 
             SizedBox(height: 16),
             FutureBuilder<List<NotePreview>>(
-              future: _recentFuture,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return _horizontalLoader();
-                }
+  future: _recentFuture,
+  builder: (context, snapshot) {
+    if (snapshot.connectionState == ConnectionState.waiting) {
+      return _horizontalLoader();
+    }
 
-                final data = (snapshot.data ?? []).take(2).toList();
-                if (data.isEmpty) {
-                  return _emptyState("No recent notes");
-                }
-                    final screenWidth = MediaQuery.of(context).size.width;
-                    final horizontalPadding = 20.0 * 2; // left + right
-                    final cardGap = 12.0;
+    final data = (snapshot.data ?? []).take(2).toList();
+    if (data.isEmpty) {
+      return _emptyState("No recent notes");
+    }
 
-                    final twoCardWidth =
-                    (screenWidth - horizontalPadding - cardGap) / 2;
-                return SizedBox(
-                  height: 180,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: data.length,
-                    separatorBuilder: (_, __) => const SizedBox(width: 12),
-                    itemBuilder: (context, i) {
-                      final note = data[i];
-                      return SizedBox(
-                        width: twoCardWidth,
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(12),
-                          onTap: () {
-                            FileOpener.openFile(
-                              context,
-                              note.fileUrl,
-                              '${note.title}.${note.fileType}',
-                            );
-                          },
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: kCardColor,
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                // 🔥 REAL THUMBNAIL
-                                SizedBox(
-                                  height: 110,
-                                  child: ClipRRect(
-                                    borderRadius: const BorderRadius.vertical(
-                                      top: Radius.circular(12),
-                                    ),
-                                    child: NoteThumbnailWithCache(
-                                      noteId: note.id,
-                                      fileUrl: note.fileUrl,
-                                      fileType: note.fileType,
-                                    ),
-                                  ),
-                                ),
+    final screenWidth = MediaQuery.of(context).size.width;
+    final twoCardWidth = (screenWidth - 40 - 12) / 2;
 
-                                Padding(
-                                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        note.title,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        "Last edited ${_timeAgo(note.updatedAt)}",
-                                        style: TextStyle(
-                                          color: Colors.grey[500],
-                                          fontSize: 12,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      );
-
-                    },
-                  ),
-                );
-              },
-            ),
+    return SizedBox(
+      height: 180,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: data.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 12),
+        itemBuilder: (context, i) => _HorizontalNoteCard(
+          note: data[i],
+          width: twoCardWidth,
+          timeAgo: _timeAgo,
+        ),
+      ),
+    );
+  },
+),
 
 
             SizedBox(height: 32),
@@ -510,8 +445,12 @@ class _HomePageState extends State<HomePage>
                   ),
                 ),
                GestureDetector(
-                  onTap: () {
-                    // TODO: hook into bottom nav index
+                 onTap: () {
+                    Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                              builder: (context) => FavoritesPage()),
+                                        );
                   },
                   child: const Text(
                     'View All >',
@@ -524,101 +463,35 @@ class _HomePageState extends State<HomePage>
             SizedBox(height: 16),
 
             FutureBuilder<List<NotePreview>>(
-              future: _favoritesFuture,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return _horizontalLoader();
-                }
+  future: _favoritesFuture,
+  builder: (context, snapshot) {
+    if (snapshot.connectionState == ConnectionState.waiting) {
+      return _horizontalLoader();
+    }
 
-                final data = (snapshot.data ?? []).take(2).toList();
-                if (data.isEmpty) {
-                  return _emptyState("No favorite notes");
-                }
-                final screenWidth = MediaQuery.of(context).size.width;
-                final horizontalPadding = 20.0 * 2; // left + right
-                final cardGap = 12.0;
+    final data = (snapshot.data ?? []).take(2).toList();
+    if (data.isEmpty) {
+      return _emptyState("No favorite notes");
+    }
 
-                final twoCardWidth =
-                (screenWidth - horizontalPadding - cardGap) / 2;
-                return SizedBox(
-                  height: 220,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: data.length,
-                    separatorBuilder: (_, __) => const SizedBox(width: 12),
-                    itemBuilder: (context, i) {
-                      final note = data[i];
-                      return SizedBox(
-                        width: twoCardWidth,
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(12),
-                          onTap: () {
-                            FileOpener.openFile(
-                              context,
-                              note.fileUrl,
-                              '${note.title}.${note.fileType}',
-                            );
-                          },
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: kCardColor,
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                // 🔥 REAL THUMBNAIL
-                                SizedBox(
-                                  height: 110,
-                                  child: ClipRRect(
-                                    borderRadius: const BorderRadius.vertical(
-                                      top: Radius.circular(12),
-                                    ),
-                                    child: NoteThumbnailWithCache(
-                                      noteId: note.id,
-                                      fileUrl: note.fileUrl,
-                                      fileType: note.fileType,
-                                    ),
-                                  ),
-                                ),
+    final screenWidth = MediaQuery.of(context).size.width;
+    final twoCardWidth = (screenWidth - 40 - 12) / 2;
 
-                                Padding(
-                                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        note.title,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        "Last edited ${_timeAgo(note.updatedAt)}",
-                                        style: TextStyle(
-                                          color: Colors.grey[500],
-                                          fontSize: 12,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      );
-
-                    },
-                  ),
-                );
-              },
-            ),
+    return SizedBox(
+      height: 180, 
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: data.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 12),
+        itemBuilder: (context, i) => _HorizontalNoteCard(
+          note: data[i],
+          width: twoCardWidth,
+          timeAgo: _timeAgo,
+        ),
+      ),
+    );
+  },
+),
 
 
             SizedBox(height: 20),
@@ -633,206 +506,6 @@ class _HomePageState extends State<HomePage>
 // -------------------------------------------------------------
 // UI COMPONENTS
 // -------------------------------------------------------------
-
-class ActionButton extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final Color backgroundColor;
-  final Color textColor;
-  final Color? borderColor;
-
-  const ActionButton({
-    super.key,
-    required this.icon,
-    required this.label,
-    required this.backgroundColor,
-    required this.textColor,
-    this.borderColor,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.symmetric(vertical: 16, horizontal: 20),
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(12),
-        border: borderColor != null
-            ? Border.all(color: borderColor!, width: 1.5)
-            : null,
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, color: textColor, size: 20),
-          SizedBox(width: 8),
-          Text(
-            label,
-            style: TextStyle(
-              color: textColor,
-              fontSize: 16,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class NoteCard extends StatelessWidget {
-  final String title;
-  final Color backgroundColor;
-  final bool hasColoredElements;
-
-  const NoteCard({
-    super.key,
-    required this.title,
-    required this.backgroundColor,
-    required this.hasColoredElements,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    Widget coloredLine(Color? color, double widthFactor) {
-      return FractionallySizedBox(
-        widthFactor: widthFactor,
-        child: Container(
-          height: 12,
-          decoration: BoxDecoration(
-            color: color ?? Colors.grey[300],
-            borderRadius: BorderRadius.circular(2),
-          ),
-        ),
-      );
-    }
-
-    return Container(
-      padding: EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 4,
-            offset: Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: Column(
-              children: [
-                Container(
-                  height: 20,
-                  decoration: BoxDecoration(
-                    color: hasColoredElements
-                        ? Colors.blue[100]
-                        : Colors.grey[200],
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ),
-                SizedBox(height: 8),
-                coloredLine(Colors.grey[300], 1.0),
-                SizedBox(height: 4),
-                coloredLine(Colors.grey[300], 0.8),
-                SizedBox(height: 4),
-                if (hasColoredElements) ...[
-                  coloredLine(Colors.orange[200], 0.6),
-                  SizedBox(height: 4),
-                ],
-                coloredLine(Colors.grey[300], 0.9),
-              ],
-            ),
-          ),
-          SizedBox(height: 8),
-          Text(
-            title,
-            style: TextStyle(
-              color: Colors.black87,
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class RecentNoteCard extends StatelessWidget {
-  final String title;
-  final String subtitle;
-
-  const RecentNoteCard({
-    super.key,
-    required this.title,
-    required this.subtitle,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 160,
-      decoration: BoxDecoration(
-        color: kCardColor,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        children: [
-          Expanded(
-            child: Container(
-              margin: EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Center(
-                child: Icon(
-                  Icons.description,
-                  size: 48,
-                  color: Colors.grey[400],
-                ),
-              ),
-            ),
-          ),
-          Container(
-            padding: EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                SizedBox(height: 4),
-                Text(
-                  subtitle,
-                  style: TextStyle(
-                    color: Colors.grey,
-                    fontSize: 12,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class NoteThumbnailWithCache extends StatefulWidget {
   final String noteId;
   final String fileUrl;
@@ -847,6 +520,85 @@ class NoteThumbnailWithCache extends StatefulWidget {
 
   @override
   State<NoteThumbnailWithCache> createState() => _NoteThumbnailWithCacheState();
+}
+
+class _HorizontalNoteCard extends StatelessWidget {
+  final NotePreview note;
+  final double width;
+  final String Function(DateTime) timeAgo;
+
+  const _HorizontalNoteCard({
+    required this.note,
+    required this.width,
+    required this.timeAgo,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: width,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () {
+          FileOpener.openFile(
+            context,
+            note.fileUrl,
+            '${note.title}.${note.fileType}',
+          );
+        },
+        child: Container(
+          decoration: BoxDecoration(
+            color: kCardColor,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                height: 110,
+                child: ClipRRect(
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(12),
+                  ),
+                  child: NoteThumbnailWithCache(
+                    noteId: note.id,
+                    fileUrl: note.fileUrl,
+                    fileType: note.fileType,
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      note.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      "Last edited ${timeAgo(note.updatedAt)}",
+                      style: TextStyle(
+                        color: Colors.grey[500],
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _NoteThumbnailWithCacheState extends State<NoteThumbnailWithCache> {
