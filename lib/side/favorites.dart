@@ -36,6 +36,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
     super.initState();
     _loadFavorites();
   }
+
   bool _isOwner(Map<String, dynamic> note) {
     final currentUserId = _supabase.auth.currentUser?.id;
     return currentUserId != null && note['owner_id'] == currentUserId;
@@ -137,7 +138,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
 
   String _getTimeAgo(String? timestamp) {
     if (timestamp == null) return 'Unknown';
-    
+
     // Supabase returns UTC timestamps without 'Z', so we need to parse as UTC explicitly
     final dateTime = DateTime.parse(timestamp + 'Z').toLocal();
     final now = DateTime.now();
@@ -167,6 +168,9 @@ class _FavoritesPageState extends State<FavoritesPage> {
 
     List<Map<String, dynamic>> sortedItems = List.from(_favoriteNotes);
     _sortItems(sortedItems);
+
+    final myNotes = sortedItems.where(_isOwner).toList();
+    final communityNotes = sortedItems.where((n) => !_isOwner(n)).toList();
 
     return Scaffold(
       backgroundColor: kDarkSurface,
@@ -249,9 +253,70 @@ class _FavoritesPageState extends State<FavoritesPage> {
                       : RefreshIndicator(
                           color: kPrimaryColor,
                           onRefresh: _loadFavorites,
-                          child: isGridView
-                              ? _buildGridView(sortedItems, width)
-                              : _buildListView(sortedItems, textScale, iconSize),
+                          child: SingleChildScrollView(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                if (myNotes.isNotEmpty) ...[
+                                  Padding(
+                                    padding: EdgeInsets.symmetric(horizontal: padding, vertical: padding / 2),
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Text(
+                                          'My Notes',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 16 * textScale,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                        Text(
+                                          '${myNotes.length} note${myNotes.length != 1 ? 's' : ''}',
+                                          style: TextStyle(color: Colors.grey[500], fontSize: 13 * textScale),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  isGridView
+                                      ? _buildGridView(myNotes, width)
+                                      : _buildListView(myNotes, textScale, iconSize),
+                                ],
+                                if (communityNotes.isNotEmpty) ...[
+                                  Padding(
+                                    padding: EdgeInsets.fromLTRB(
+                                      padding,
+                                      myNotes.isNotEmpty ? 24 : padding / 2,
+                                      padding,
+                                      padding / 2,
+                                    ),
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Text(
+                                          'From Community',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 16 * textScale,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                        Text(
+                                          '${communityNotes.length} note${communityNotes.length != 1 ? 's' : ''}',
+                                          style: TextStyle(color: Colors.grey[500], fontSize: 13 * textScale),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  isGridView
+                                      ? _buildGridView(communityNotes, width)
+                                      : _buildListView(communityNotes, textScale, iconSize),
+                                ],
+                                const SizedBox(height: 24),
+                              ],
+                            ),
+                          ),
                         ),
                 ),
               ],
@@ -314,7 +379,9 @@ class _FavoritesPageState extends State<FavoritesPage> {
 
   Widget _buildGridView(List<Map<String, dynamic>> items, double width) {
     return GridView.builder(
-      padding: const EdgeInsets.all(12),
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.symmetric(horizontal: 12),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
         crossAxisSpacing: 10,
@@ -342,6 +409,8 @@ class _FavoritesPageState extends State<FavoritesPage> {
 
   Widget _buildListView(List<Map<String, dynamic>> items, double textScale, double iconSize) {
     return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
       padding: const EdgeInsets.symmetric(horizontal: 16),
       itemCount: items.length,
       itemBuilder: (context, index) {
@@ -387,151 +456,147 @@ class _FavoritesPageState extends State<FavoritesPage> {
     );
   }
 
-
   void _showItemMenu(Map<String, dynamic> note) {
-  final isOwner = _isOwner(note);
+    final isOwner = _isOwner(note);
 
-  showModalBottomSheet(
-    backgroundColor: kCardColor,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-    ),
-    context: context,
-    builder: (context) => StatefulBuilder(
-      builder: (context, setSheetState) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (isOwner)
-              _buildOption(context, Icons.edit, "Edit note", () {
+    showModalBottomSheet(
+      backgroundColor: kCardColor,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setSheetState) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (isOwner)
+                _buildOption(context, Icons.edit, "Edit note", () {
+                  Navigator.pop(context);
+                  _showEditDialog(note);
+                }),
+
+              _buildOption(context, Icons.share, "Share", () async {
                 Navigator.pop(context);
-                _showEditDialog(note);
-              }),
 
-            _buildOption(context, Icons.share, "Share", () async {
-              Navigator.pop(context);
-
-              try {
-                final supabase = Supabase.instance.client;
-
-                final uri = Uri.parse(note['file_url']);
-                final segments = uri.pathSegments;
-
-                final bucketIndex = segments.indexOf('notes');
-                if (bucketIndex == -1) throw Exception('Invalid file URL');
-
-                final storagePath =
-                    segments.sublist(bucketIndex + 1).join('/');
-
-                final signedUrl = await supabase.storage
-                    .from('notes')
-                    .createSignedUrl(storagePath, 60 * 60);
-
-                await Share.share(
-                  '📄 ${note['title']}\n\n$signedUrl',
-                  subject: note['title'],
-                );
-              } catch (e) {
-                if (!mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Failed to share note: $e')),
-                );
-              }
-            }),
-
-            _buildOption(
-              context,
-              _copiedNoteId == note['id'] ? Icons.check : Icons.link,
-              _copiedNoteId == note['id'] ? "Copied" : "Copy link",
-              () async {
                 try {
+                  final supabase = Supabase.instance.client;
+
                   final uri = Uri.parse(note['file_url']);
                   final segments = uri.pathSegments;
 
                   final bucketIndex = segments.indexOf('notes');
                   if (bucketIndex == -1) throw Exception('Invalid file URL');
 
-                  final storagePath =
-                      segments.sublist(bucketIndex + 1).join('/');
+                  final storagePath = segments.sublist(bucketIndex + 1).join('/');
 
-                  final signedUrl = await _supabase.storage
+                  final signedUrl = await supabase.storage
                       .from('notes')
                       .createSignedUrl(storagePath, 60 * 60);
 
-                  await Clipboard.setData(
-                    ClipboardData(text: signedUrl),
+                  await Share.share(
+                    '📄 ${note['title']}\n\n$signedUrl',
+                    subject: note['title'],
                   );
-
-                  setSheetState(() {
-                    _copiedNoteId = note['id'];
-                  });
-
-                  HapticFeedback.lightImpact();
-
-                  _copyResetTimer?.cancel();
-                  _copyResetTimer = Timer(const Duration(seconds: 5), () {
-                    if (!mounted) return;
-                    setSheetState(() {
-                      _copiedNoteId = null;
-                    });
-                  });
                 } catch (e) {
                   if (!mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Failed to copy link: $e')),
+                    SnackBar(content: Text('Failed to share note: $e')),
                   );
                 }
-              },
-            ),
+              }),
 
-            _buildOption(
-              context,
-              Icons.star_border,
-              "Remove from Favorites",
-              () {
-                Navigator.pop(context);
-                _removeFavorite(note['id']);
-              },
-            ),
-
-            const Divider(color: Colors.grey),
-
-            if (isOwner)
               _buildOption(
                 context,
-                Icons.delete,
-                "Delete",
-                () {
-                  Navigator.pop(context);
-                  _showDeleteConfirmation(note);
+                _copiedNoteId == note['id'] ? Icons.check : Icons.link,
+                _copiedNoteId == note['id'] ? "Copied" : "Copy link",
+                () async {
+                  try {
+                    final uri = Uri.parse(note['file_url']);
+                    final segments = uri.pathSegments;
+
+                    final bucketIndex = segments.indexOf('notes');
+                    if (bucketIndex == -1) throw Exception('Invalid file URL');
+
+                    final storagePath = segments.sublist(bucketIndex + 1).join('/');
+
+                    final signedUrl = await _supabase.storage
+                        .from('notes')
+                        .createSignedUrl(storagePath, 60 * 60);
+
+                    await Clipboard.setData(
+                      ClipboardData(text: signedUrl),
+                    );
+
+                    setSheetState(() {
+                      _copiedNoteId = note['id'];
+                    });
+
+                    HapticFeedback.lightImpact();
+
+                    _copyResetTimer?.cancel();
+                    _copyResetTimer = Timer(const Duration(seconds: 5), () {
+                      if (!mounted) return;
+                      setSheetState(() {
+                        _copiedNoteId = null;
+                      });
+                    });
+                  } catch (e) {
+                    if (!mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Failed to copy link: $e')),
+                    );
+                  }
                 },
-                isDestructive: true,
-              )
-            else
-              _buildOption(
-                context,
-                Icons.report_outlined,
-                "Report note",
-                () {
-                  Navigator.pop(context);
-                  // TODO: wire up reporting flow if you have one
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Report submitted')),
-                  );
-                },
-                isDestructive: true,
               ),
-          ],
+
+              _buildOption(
+                context,
+                Icons.star_border,
+                "Remove from Favorites",
+                () {
+                  Navigator.pop(context);
+                  _removeFavorite(note['id']);
+                },
+              ),
+
+              const Divider(color: Colors.grey),
+
+              if (isOwner)
+                _buildOption(
+                  context,
+                  Icons.delete,
+                  "Delete",
+                  () {
+                    Navigator.pop(context);
+                    _showDeleteConfirmation(note);
+                  },
+                  isDestructive: true,
+                )
+              else
+                _buildOption(
+                  context,
+                  Icons.report_outlined,
+                  "Report note",
+                  () {
+                    Navigator.pop(context);
+                    // TODO: wire up reporting flow if you have one
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Report submitted')),
+                    );
+                  },
+                  isDestructive: true,
+                ),
+            ],
+          ),
         ),
       ),
-    ),
-  );
-}
+    );
+  }
 
   void _showEditDialog(Map<String, dynamic> note) {
-    final TextEditingController titleController =
-    TextEditingController(text: note['title']);
+    final TextEditingController titleController = TextEditingController(text: note['title']);
 
     final TextEditingController descController =
         TextEditingController(text: note['description'] ?? '');
@@ -540,7 +605,6 @@ class _FavoritesPageState extends State<FavoritesPage> {
 
     List<String> editableTags =
         note['tags'] != null ? List<String>.from(note['tags']) : [];
-
 
     showDialog(
       context: context,
@@ -586,7 +650,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                
+
                 // Description input
                 const Text(
                   'Description',
@@ -611,7 +675,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                
+
                 // Tags section
                 const Text(
                   'Tags',
@@ -671,7 +735,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
                   ],
                 ),
                 const SizedBox(height: 12),
-                
+
                 // Display tags
                 if (editableTags.isNotEmpty)
                   Wrap(
@@ -737,16 +801,16 @@ class _FavoritesPageState extends State<FavoritesPage> {
                         'tags': editableTags,
                       })
                       .eq('id', note['id']);
-                  
+
                   if (!mounted) return;
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Note updated successfully'),
-                        backgroundColor: Colors.green,
-                      ),
-                    );
-                    _loadFavorites();
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Note updated successfully'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                  _loadFavorites();
                 } catch (e) {
                   if (!mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -773,6 +837,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
       ),
     );
   }
+
   void _showDeleteConfirmation(Map<String, dynamic> note) {
     showDialog(
       context: context,
@@ -821,8 +886,6 @@ class FavoriteGridItemWidget extends StatefulWidget {
 }
 
 class _FavoriteGridItemWidgetState extends State<FavoriteGridItemWidget> {
-
-
   @override
   void initState() {
     super.initState();
@@ -934,7 +997,6 @@ class _FavoriteGridItemWidgetState extends State<FavoriteGridItemWidget> {
       fileType: widget.note['file_type'],
     );
   }
-
 
   Color _getColor() {
     final fileType = widget.note['file_type']?.toLowerCase();
@@ -1107,7 +1169,6 @@ class _NoteThumbnailWithCacheState extends State<NoteThumbnailWithCache> {
       debugPrint('Thumbnail load error: $e');
     }
   }
-
 
   @override
   Widget build(BuildContext context) {

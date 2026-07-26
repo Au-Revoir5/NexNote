@@ -6,6 +6,7 @@ import 'package:nexnote/backend/file_opener.dart';
 import 'add.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:flutter/services.dart';
+import '../side/folders_page.dart';
 
 const kPrimaryColor = Color(0xFF6366F1);
 const kDarkSurface = Color(0xFF1C1C1E);
@@ -24,99 +25,433 @@ class NotesPage extends StatefulWidget {
 }
 
 class _NotesPageState extends State<NotesPage> {
-  final TextEditingController _searchController = TextEditingController();
   final _supabase = Supabase.instance.client;
-  
-  List<Map<String, dynamic>> _notes = [];
-  List<Map<String, dynamic>> _filteredNotes = [];
-  List<Map<String, dynamic>> _savedNotes = [];
+
+  List<Map<String, dynamic>> _communityNotes = [];
   bool _isLoadingSaved = true;
-  bool _isLoading = true;
+
+  // ---- Recent notes (root-level dashboard, folder-agnostic) ----
+  List<Map<String, dynamic>> _recentNotes = [];
+  bool _isLoadingRecent = true;
+  static const int _recentNotesLimit = 5;
+
+  // ---- Recent folders (root-level dashboard preview) ----
+  List<Map<String, dynamic>> _recentFolders = [];
+  bool _isLoadingRecentFolders = true;
+  static const int _recentFoldersLimit = 4;
 
   final Set<String> _selectedNoteIds = {};
   bool _selectionMode = false;
 
+  // ---- Search ----
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+
   Future<void> _loadSavedNotes() async {
-  setState(() => _isLoadingSaved = true);
+    setState(() => _isLoadingSaved = true);
 
-  final user = _supabase.auth.currentUser;
-  if (user == null) {
-    setState(() => _isLoadingSaved = false);
-    return;
-  }
+    final user = _supabase.auth.currentUser;
+    if (user == null) {
+      setState(() => _isLoadingSaved = false);
+      return;
+    }
 
-  try {
-    final response = await _supabase
-        .from('saved_notes')
-        .select('''
+    try {
+      final response = await _supabase
+          .from('saved_notes')
+          .select('''
           note_id,
           created_at,
+          folder_id,
           notes (
             id,
             title,
+            description,
             file_url,
             file_type,
             is_public,
             updated_at,
+            tags,
             publisher_id,
             profiles:publisher_id ( username, avatar_url )
           )
         ''')
-        .eq('user_id', user.id)
-        .order('created_at', ascending: false);
+          .eq('user_id', user.id)
+          .order('created_at', ascending: false);
 
-    final saved = (response as List)
-        .where((row) => row['notes'] != null)
-        .map((row) {
-          final note = row['notes'];
-          return {
-            'id': note['id'],
-            'title': note['title'] ?? 'Untitled',
-            'file_url': note['file_url'],
-            'file_type': note['file_type'],
-            'updated_at': note['updated_at'],
-            'author_name': note['profiles']?['username'] ?? 'Anonymous',
-          };
-        })
-        .toList();
+      // Favorites can apply to any note, owned or not, so check them here too
+      final favoritesResponse = await _supabase
+          .from('favorites')
+          .select('note_id')
+          .eq('user_id', user.id);
+      final favoriteNoteIds = (favoritesResponse as List)
+          .map((fav) => fav['note_id'] as String)
+          .toSet();
 
-    if (!mounted) return;
-    setState(() {
-      _savedNotes = List<Map<String, dynamic>>.from(saved);
-      _isLoadingSaved = false;
-    });
-  } catch (e) {
-    if (!mounted) return;
-    setState(() => _isLoadingSaved = false);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Error loading saved notes: $e')),
+      final saved = (response as List)
+          .where((row) => row['notes'] != null)
+          .map((row) {
+            final note = row['notes'];
+            return {
+              'id': note['id'],
+              'title': note['title'] ?? 'Untitled',
+              'description': note['description'],
+              'file_url': note['file_url'],
+              'file_type': note['file_type'],
+              'is_public': note['is_public'] ?? true,
+              'updated_at': note['updated_at'],
+              'tags': note['tags'],
+              'author_name': note['profiles']?['username'] ?? 'Anonymous',
+              'is_owned': false,
+              'is_favorite': favoriteNoteIds.contains(note['id']),
+              // folder_id on the saved_notes join row, not the underlying note
+              'saved_folder_id': row['folder_id'],
+            };
+          })
+          .toList();
+
+      if (!mounted) return;
+      setState(() {
+        _communityNotes = List<Map<String, dynamic>>.from(saved);
+        _isLoadingSaved = false;
+      });
+      _loadRecentNotes();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoadingSaved = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error loading saved notes: $e')),
+      );
+    }
+  }
+
+  Future<void> _unsaveNote(String noteId) async {
+    final user = _supabase.auth.currentUser;
+    if (user == null) return;
+
+    try {
+      await _supabase
+          .from('saved_notes')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('note_id', noteId);
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Removed from saved notes')),
+      );
+      await _loadSavedNotes();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to unsave note: $e')),
+      );
+    }
+  }
+
+  // ---------------------------------------------------------------------
+  // RECENT NOTES: folder-agnostic dashboard view (5 most recent)
+  // ---------------------------------------------------------------------
+
+  Future<void> _loadRecentNotes() async {
+    setState(() => _isLoadingRecent = true);
+    final user = _supabase.auth.currentUser;
+    if (user == null) {
+      setState(() => _isLoadingRecent = false);
+      return;
+    }
+
+    try {
+      // Ignores folder_id entirely - recent should reflect the whole collection.
+      final ownedResponse = await _supabase
+          .from('notes')
+          .select()
+          .eq('user_id', user.id)
+          .filter('deleted_at', 'is', null)
+          .order('updated_at', ascending: false)
+          .limit(_recentNotesLimit);
+
+      final favoritesResponse = await _supabase
+          .from('favorites')
+          .select('note_id')
+          .eq('user_id', user.id);
+      final favoriteNoteIds = (favoritesResponse as List)
+          .map((fav) => fav['note_id'] as String)
+          .toSet();
+
+      final owned = (ownedResponse as List).map((note) {
+        final noteMap = Map<String, dynamic>.from(note as Map);
+        return {
+          ...noteMap,
+          'is_favorite': favoriteNoteIds.contains(noteMap['id']),
+          'is_owned': true,
+        };
+      }).toList();
+
+      // Merge with whatever community notes are already loaded, then take the
+      // overall 5 most recent across both.
+      final combined = [...owned, ..._communityNotes]
+        ..sort((a, b) {
+          final aDate = DateTime.tryParse('${a['updated_at']}Z') ??
+              DateTime.fromMillisecondsSinceEpoch(0);
+          final bDate = DateTime.tryParse('${b['updated_at']}Z') ??
+              DateTime.fromMillisecondsSinceEpoch(0);
+          return bDate.compareTo(aDate);
+        });
+
+      if (!mounted) return;
+      setState(() {
+        _recentNotes = combined.take(_recentNotesLimit).toList();
+        _isLoadingRecent = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoadingRecent = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error loading recent notes: $e')),
+      );
+    }
+  }
+
+  // ---------------------------------------------------------------------
+  // RECENT FOLDERS: dashboard preview (4 most recent)
+  // ---------------------------------------------------------------------
+
+  Future<void> _loadRecentFolders() async {
+    setState(() => _isLoadingRecentFolders = true);
+    final user = _supabase.auth.currentUser;
+    if (user == null) {
+      setState(() => _isLoadingRecentFolders = false);
+      return;
+    }
+
+    try {
+      final response = await _supabase
+          .from('folders')
+          .select()
+          .eq('user_id', user.id)
+          .order('updated_at', ascending: false)
+          .limit(_recentFoldersLimit);
+
+      if (!mounted) return;
+      setState(() {
+        _recentFolders = List<Map<String, dynamic>>.from(response as List);
+        _isLoadingRecentFolders = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoadingRecentFolders = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error loading folders: $e')),
+      );
+    }
+  }
+
+  // ---------------------------------------------------------------------
+  // MOVE NOTES TO FOLDER
+  // ---------------------------------------------------------------------
+
+  Future<void> _showMoveToFolderSheet() async {
+    if (_selectedNoteIds.isEmpty) return;
+    final user = _supabase.auth.currentUser;
+    if (user == null) return;
+
+    String? pickerFolderId; // current folder shown inside picker (starts at root)
+    List<Map<String, dynamic>> pickerFolders = [];
+    final List<Map<String, dynamic>> pickerPath = [];
+    bool pickerLoading = true;
+
+    Future<void> loadPickerFolders(StateSetter setSheetState) async {
+      setSheetState(() => pickerLoading = true);
+      final query = _supabase.from('folders').select().eq('user_id', user.id);
+      final response = pickerFolderId == null
+          ? await query.filter('parent_id', 'is', null).order('name')
+          : await query.eq('parent_id', pickerFolderId!).order('name');
+      setSheetState(() {
+        pickerFolders = List<Map<String, dynamic>>.from(response as List);
+        pickerLoading = false;
+      });
+    }
+
+    bool initialLoadTriggered = false;
+
+    await showModalBottomSheet(
+      context: context,
+      backgroundColor: kCardColor,
+      isScrollControlled: true,
+      useSafeArea: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            if (!initialLoadTriggered) {
+              initialLoadTriggered = true;
+              loadPickerFolders(setSheetState);
+            }
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        if (pickerPath.isNotEmpty)
+                          IconButton(
+                            icon: const Icon(Icons.arrow_back, color: Colors.white),
+                            splashRadius: 20,
+                            onPressed: () {
+                              pickerPath.removeLast();
+                              pickerFolderId =
+                                  pickerPath.isEmpty ? null : pickerPath.last['id'];
+                              loadPickerFolders(setSheetState);
+                            },
+                          ),
+                        Expanded(
+                          child: Text(
+                            pickerPath.isEmpty ? 'Move to Folder' : pickerPath.last['name'],
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 17,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const Divider(color: Colors.grey),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxHeight: 320),
+                      child: pickerLoading
+                          ? const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 30),
+                              child: Center(
+                                child: CircularProgressIndicator(color: kPrimaryColor),
+                              ),
+                            )
+                          : pickerFolders.isEmpty
+                              ? const Padding(
+                                  padding: EdgeInsets.all(20),
+                                  child: Text(
+                                    'No subfolders here',
+                                    style: TextStyle(color: Colors.grey),
+                                  ),
+                                )
+                              : ListView.builder(
+                                  shrinkWrap: true,
+                                  itemCount: pickerFolders.length,
+                                  itemBuilder: (context, index) {
+                                    final folder = pickerFolders[index];
+                                    return ListTile(
+                                      leading: const Icon(Icons.folder, color: kAccentYellow),
+                                      title: Text(
+                                        folder['name'],
+                                        style: const TextStyle(color: Colors.white),
+                                      ),
+                                      trailing:
+                                          const Icon(Icons.chevron_right, color: Colors.grey),
+                                      onTap: () {
+                                        pickerPath.add(folder);
+                                        pickerFolderId = folder['id'];
+                                        loadPickerFolders(setSheetState);
+                                      },
+                                    );
+                                  },
+                                ),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: kPrimaryColor,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
+                        onPressed: () async {
+                          Navigator.pop(context);
+                          await _moveSelectedToFolder(pickerFolderId);
+                        },
+                        child: Text(
+                          pickerPath.isEmpty
+                              ? 'Move here (Root)'
+                              : 'Move to "${pickerPath.last['name']}"',
+                          style: const TextStyle(color: Colors.white),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
-}
 
-Future<void> _unsaveNote(String noteId) async {
-  final user = _supabase.auth.currentUser;
-  if (user == null) return;
+  /// Moves selected notes to [folderId]. Owned notes get their `notes.folder_id`
+  /// updated. Community/saved notes aren't ours to update, so their folder
+  /// placement lives on the `saved_notes.folder_id` join row instead.
+  Future<void> _moveSelectedToFolder(String? folderId) async {
+    final user = _supabase.auth.currentUser;
+    if (user == null || _selectedNoteIds.isEmpty) return;
 
-  try {
-    await _supabase
-        .from('saved_notes')
-        .delete()
-        .eq('user_id', user.id)
-        .eq('note_id', noteId);
+    final allNotes = [..._recentNotes, ..._communityNotes];
+    final ownedIds = <String>[];
+    final savedIds = <String>[];
 
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Removed from saved notes')),
-    );
-    _loadSavedNotes();
-  } catch (e) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Failed to unsave note: $e')),
-    );
+    for (final id in _selectedNoteIds) {
+      final match = allNotes.firstWhere(
+        (n) => n['id'] == id,
+        orElse: () => <String, dynamic>{},
+      );
+      if (match['is_owned'] == true) {
+        ownedIds.add(id);
+      } else {
+        savedIds.add(id);
+      }
+    }
+
+    try {
+      if (ownedIds.isNotEmpty) {
+        await _supabase
+            .from('notes')
+            .update({'folder_id': folderId})
+            .eq('user_id', user.id)
+            .inFilter('id', ownedIds);
+      }
+
+      if (savedIds.isNotEmpty) {
+        await _supabase
+            .from('saved_notes')
+            .update({'folder_id': folderId})
+            .eq('user_id', user.id)
+            .inFilter('note_id', savedIds);
+      }
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${_selectedNoteIds.length} note(s) moved')),
+      );
+
+      _clearSelection();
+      await Future.wait([_loadSavedNotes(), _loadRecentNotes()]);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to move notes: $e')),
+      );
+    }
   }
-}
+
+  // ---------------------------------------------------------------------
+  // SELECTION TOOLBAR
+  // ---------------------------------------------------------------------
 
   Widget _buildSelectionToolbar() {
     return IgnorePointer(
@@ -126,9 +461,9 @@ Future<void> _unsaveNote(String noteId) async {
         duration: const Duration(milliseconds: 240),
         curve: Curves.easeOutCubic,
         child: AnimatedOpacity(
-            opacity: _selectionMode ? 1 : 0,
-            duration: const Duration(milliseconds: 160),
-            child: Material(
+          opacity: _selectionMode ? 1 : 0,
+          duration: const Duration(milliseconds: 160),
+          child: Material(
             color: Colors.transparent,
             child: SafeArea(
               bottom: false,
@@ -176,7 +511,7 @@ Future<void> _unsaveNote(String noteId) async {
                       color: Colors.white,
                       splashRadius: 20,
                       onPressed: () {
-                        // TODO: move selected notes to folder
+                        _showMoveToFolderSheet();
                       },
                     ),
 
@@ -199,7 +534,7 @@ Future<void> _unsaveNote(String noteId) async {
                         setState(() {
                           _selectedNoteIds
                             ..clear()
-                            ..addAll(_filteredNotes.map((n) => n['id'] as String));
+                            ..addAll(_filteredRecentNotes.map((n) => n['id'] as String));
                         });
                       },
                     ),
@@ -227,6 +562,17 @@ Future<void> _unsaveNote(String noteId) async {
     final user = _supabase.auth.currentUser;
     if (user == null || _selectedNoteIds.isEmpty) return;
 
+    final allNotes = [..._recentNotes, ..._communityNotes];
+    final ownedIds = _selectedNoteIds.where((id) {
+      final match = allNotes.firstWhere((n) => n['id'] == id, orElse: () => <String, dynamic>{});
+      return match['is_owned'] == true;
+    }).toList();
+
+    if (ownedIds.isEmpty) {
+      _clearSelection();
+      return;
+    }
+
     try {
       await _supabase
           .from('notes')
@@ -238,20 +584,20 @@ Future<void> _unsaveNote(String noteId) async {
                 .toIso8601String(),
           })
           .eq('user_id', user.id)
-          .inFilter('id', _selectedNoteIds.toList());
+          .inFilter('id', ownedIds);
 
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            '${_selectedNoteIds.length} notes moved to trash (10 days)',
+            '${ownedIds.length} notes moved to trash (10 days)',
           ),
         ),
       );
 
       _clearSelection();
-      _loadNotes();
+      _loadRecentNotes();
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -319,7 +665,7 @@ Future<void> _unsaveNote(String noteId) async {
       );
 
       _clearSelection();
-      _loadNotes();
+      _loadRecentNotes();
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -331,7 +677,7 @@ Future<void> _unsaveNote(String noteId) async {
   bool _areAllSelectedStarred() {
     if (_selectedNoteIds.isEmpty) return false;
 
-    final starredIds = _notes
+    final starredIds = _recentNotes
         .where((n) => n['is_favorite'] == true)
         .map((n) => n['id'] as String)
         .toSet();
@@ -357,7 +703,7 @@ Future<void> _unsaveNote(String noteId) async {
       );
 
       _clearSelection();
-      _loadNotes();
+      _loadRecentNotes();
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -372,6 +718,7 @@ Future<void> _unsaveNote(String noteId) async {
     showModalBottomSheet(
       context: context,
       backgroundColor: kCardColor,
+      useSafeArea: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
@@ -414,7 +761,7 @@ Future<void> _unsaveNote(String noteId) async {
                 label: 'Move to folder',
                 onTap: () {
                   Navigator.pop(context);
-                  // TODO: move selected notes
+                  _showMoveToFolderSheet();
                 },
               ),
 
@@ -442,9 +789,14 @@ Future<void> _unsaveNote(String noteId) async {
   @override
   void initState() {
     super.initState();
-    _loadNotes();
+    _searchController.addListener(() {
+      setState(() {
+        _searchQuery = _searchController.text.trim().toLowerCase();
+      });
+    });
     _loadSavedNotes();
-    _searchController.addListener(_filterNotes);
+    _loadRecentNotes();
+    _loadRecentFolders();
   }
 
   @override
@@ -496,75 +848,6 @@ Future<void> _unsaveNote(String noteId) async {
     _setSelectionMode(false);
   } 
 
-  Future<void> _loadNotes() async {
-    setState(() {
-      _isLoading = true;
-    });
-
-    try {
-      final user = _supabase.auth.currentUser;
-      if (user == null) return;
-
-      // Load notes
-      final notesResponse = await _supabase
-          .from('notes')
-          .select()
-          .eq('user_id', user.id)
-          .filter('deleted_at', 'is', null)
-          .order('updated_at', ascending: false);
-
-      // Load user's favorites
-      final favoritesResponse = await _supabase
-          .from('favorites')
-          .select('note_id')
-          .eq('user_id', user.id);
-
-      final favoriteNoteIds = (favoritesResponse as List)
-          .map((fav) => fav['note_id'] as String)
-          .toSet();
-
-      // Add is_favorite flag to notes
-      final notesWithFavorites = (notesResponse as List).map((note) {
-        final noteMap = Map<String, dynamic>.from(note as Map);
-        return {
-          ...noteMap,
-          'is_favorite': favoriteNoteIds.contains(noteMap['id']),
-        };
-      }).toList();
-
-      setState(() {
-        _notes = notesWithFavorites;
-        _filteredNotes = _notes;
-        _isLoading = false;
-      });
-    } catch (e) {
-      setState(() {
-        _isLoading = false;
-      });
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading notes: $e')),
-        );
-      }
-    }
-  }
-
-  void _filterNotes() {
-    final query = _searchController.text.toLowerCase();
-    setState(() {
-      if (query.isEmpty) {
-        _filteredNotes = _notes;
-      } else {
-        _filteredNotes = _notes.where((note) {
-          final title = note['title'].toString().toLowerCase();
-          final tags = note['tags'] as List<dynamic>?;
-          final tagMatch = tags?.any((tag) => tag.toString().toLowerCase().contains(query)) ?? false;
-          return title.contains(query) || tagMatch;
-        }).toList();
-      }
-    });
-  }
-
   Future<void> _deleteNote(String noteId, String fileUrl) async {
     try {
       final supabase = Supabase.instance.client;
@@ -581,7 +864,7 @@ Future<void> _unsaveNote(String noteId) async {
           .eq('id', noteId)
           .eq('user_id', supabase.auth.currentUser!.id);
 
-      await _loadNotes();
+      await _loadRecentNotes();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -624,299 +907,385 @@ Future<void> _unsaveNote(String noteId) async {
     }
   }
 
+  // ---------------------------------------------------------------------
+  // SEARCH FILTERING
+  // ---------------------------------------------------------------------
+
+  List<Map<String, dynamic>> get _filteredRecentNotes {
+    if (_searchQuery.isEmpty) return _recentNotes;
+    return _recentNotes.where((note) {
+      final title = (note['title'] ?? '').toString().toLowerCase();
+      final author = (note['author_name'] ?? '').toString().toLowerCase();
+      final tagsRaw = note['tags'];
+      final tags = tagsRaw is List
+          ? tagsRaw.join(' ').toLowerCase()
+          : '';
+      return title.contains(_searchQuery) ||
+          author.contains(_searchQuery) ||
+          tags.contains(_searchQuery);
+    }).toList();
+  }
+
+  List<Map<String, dynamic>> get _filteredRecentFolders {
+    if (_searchQuery.isEmpty) return _recentFolders;
+    return _recentFolders
+        .where((folder) => (folder['name'] ?? '').toString().toLowerCase().contains(_searchQuery))
+        .toList();
+  }
+
+  // ---------------------------------------------------------------------
+  // FOLDER GRID TILE: dashboard preview keeps the original 2-column grid
+  // look for folders, separate from the notes list below it.
+  // ---------------------------------------------------------------------
+
+  Widget _buildFolderGridTile(Map<String, dynamic> folder) {
+    return GestureDetector(
+      key: ValueKey('folder_${folder['id']}'),
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => FoldersPage(initialFolder: folder),
+          ),
+        ).then((_) {
+          _loadRecentFolders();
+          _loadRecentNotes();
+        });
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          color: kCardColor,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.folder, color: kAccentYellow, size: 20),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                folder['name'],
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: Colors.white, fontSize: 14),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------
+  // NOTE TILE: shared renderer for owned vs community notes
+  // ---------------------------------------------------------------------
+
+  Widget _buildNoteTile(Map<String, dynamic> note) {
+    final noteId = note['id'] as String;
+    final isOwned = note['is_owned'] == true;
+    final isSelected = _selectedNoteIds.contains(noteId);
+
+    if (!isOwned) {
+      // Community / saved note: selection + folder-move are supported, but
+      // no edit and no hard delete (only "unsave").
+      return GestureDetector(
+        key: ValueKey('community_$noteId'),
+        onLongPress: () => _onLongPressNote(noteId),
+        onTap: () => _onTapNote(
+          noteId,
+          () {
+            FileOpener.openFile(
+              context,
+              note['file_url'],
+              '${note['title']}.${note['file_type']}',
+            );
+          },
+        ),
+        child: NoteItem(
+          noteId: noteId,
+          selectionMode: _selectionMode,
+          isOwned: false,
+          authorName: note['author_name'],
+          title: note['title'] ?? 'Untitled',
+          description: note['description'],
+          subtitle:
+              'by ${note['author_name'] ?? 'Anonymous'} • ${_getTimeAgo(note['updated_at'])}',
+          fileUrl: note['file_url'],
+          fileType: note['file_type'],
+          tags: note['tags'] != null ? List<String>.from(note['tags']) : [],
+          isPublic: note['is_public'] ?? true,
+          isFavorite: note['is_favorite'] ?? false,
+          isSelected: isSelected,
+          onDelete: () {},
+          onUnsave: () => _unsaveNote(noteId),
+          onRefresh: _loadSavedNotes,
+        ),
+      );
+    }
+
+    return GestureDetector(
+      key: ValueKey('owned_$noteId'),
+      onLongPress: () => _onLongPressNote(noteId),
+      onTap: () => _onTapNote(
+        noteId,
+        () {
+          FileOpener.openFile(
+            context,
+            note['file_url'],
+            '${note['title']}.${note['file_type']}',
+          );
+        },
+      ),
+      child: NoteItem(
+        noteId: noteId,
+        selectionMode: _selectionMode,
+        isOwned: true,
+        title: note['title'] ?? 'Untitled',
+        description: note['description'],
+        subtitle: 'Last edited ${_getTimeAgo(note['updated_at'])}',
+        fileUrl: note['file_url'],
+        fileType: note['file_type'],
+        tags: note['tags'] != null ? List<String>.from(note['tags']) : [],
+        isPublic: note['is_public'] ?? false,
+        isFavorite: note['is_favorite'] ?? false,
+        isSelected: isSelected,
+        onDelete: () => _deleteNote(noteId, note['file_url']),
+        onRefresh: _loadRecentNotes,
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------
+  // FILES SECTION: unified dashboard preview (folders + notes together,
+  // one "View All" into the single Drive-style FoldersPage).
+  // ---------------------------------------------------------------------
+
+  Widget _buildFilesSection() {
+    final folders = _filteredRecentFolders;
+    final notes = _filteredRecentNotes;
+    final isLoading = _isLoadingRecent || _isLoadingRecentFolders;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'Recent',
+              style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
+            ),
+            GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const FoldersPage()),
+                ).then((_) {
+                  _loadRecentFolders();
+                  _loadRecentNotes();
+                  _loadSavedNotes();
+                });
+              },
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'View All',
+                    style: TextStyle(color: kPrimaryColor, fontSize: 14, fontWeight: FontWeight.w600),
+                  ),
+                  SizedBox(width: 2),
+                  Icon(Icons.chevron_right, color: kPrimaryColor, size: 18),
+                ],
+              ),
+            ),
+          ],
+        ),
+        SizedBox(height: _selectionMode ? 0 : 16),
+        if (isLoading)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 20),
+            child: Center(child: CircularProgressIndicator(color: kPrimaryColor)),
+          )
+        else if (folders.isEmpty && notes.isEmpty)
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.all(40),
+              child: Column(
+                children: [
+                  Icon(
+                    _searchQuery.isEmpty ? Icons.note_add_outlined : Icons.search_off,
+                    size: 64,
+                    color: Colors.grey[600],
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    _searchQuery.isEmpty ? 'Nothing here yet' : 'No matches for your search',
+                    style: TextStyle(color: Colors.grey[400], fontSize: 16),
+                  ),
+                  const SizedBox(height: 8),
+                  if (_searchQuery.isEmpty)
+                    Text(
+                      'Tap the + button to add your first note, or save one from the community',
+                      style: TextStyle(color: Colors.grey[600], fontSize: 14),
+                      textAlign: TextAlign.center,
+                    ),
+                ],
+              ),
+            ),
+          )
+        else ...[
+          if (folders.isNotEmpty)
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                childAspectRatio: 2.8,
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
+              ),
+              itemCount: folders.length,
+              itemBuilder: (context, index) => _buildFolderGridTile(folders[index]),
+            ),
+          if (folders.isNotEmpty && notes.isNotEmpty) const SizedBox(height: 16),
+          if (notes.isNotEmpty)
+            ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: notes.length,
+              itemBuilder: (context, index) => _buildNoteTile(notes[index]),
+            ),
+        ],
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: kDarkSurface,
       body: Stack(
-      children: [
-        Column(
-          children: [
-          AnimatedSlide(
-            offset: _selectionMode ? const Offset(0, -1) : Offset.zero,
-            duration: const Duration(milliseconds: 220),
-            curve: Curves.easeOutCubic,
-            child: AnimatedOpacity(
-              opacity: _selectionMode ? 0 : 1,
-              duration: const Duration(milliseconds: 150),
-              child: IgnorePointer(
-                ignoring: _selectionMode,
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF2A2A2E),
-                      borderRadius: BorderRadius.circular(25),
-                    ),
-                    child: TextField(
-                      controller: _searchController,
-                      decoration: InputDecoration(
-                        hintText: 'Search by title or tags...',
-                        hintStyle: TextStyle(color: Colors.grey),
-                        prefixIcon: Icon(Icons.search, color: Colors.grey),
-                        border: InputBorder.none,
-                        contentPadding:
-                            EdgeInsets.symmetric(horizontal: 20, vertical: _selectionMode ? 20 : 15),
-                      ),
-                      style: const TextStyle(color: Colors.white),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-
-          Expanded(
-            child: _isLoading
-                ? const Center(
-                    child: CircularProgressIndicator(color: kPrimaryColor),
-                  )
-                : RefreshIndicator(
-                    color: kPrimaryColor,
-                    onRefresh: () async {
-                      await Future.wait([_loadNotes(), _loadSavedNotes()]);
-                    },
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.translucent,
-                      onTap: _selectionMode ? _clearSelection : null,
-                      child: SingleChildScrollView(
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // Action Buttons
-                            AnimatedPadding(
-                              duration: const Duration(milliseconds: 180),
-                              curve: Curves.easeOut,
-                              padding: EdgeInsets.only(
-                                top: _selectionMode ? 16 : 0, 
-                              ),
-                              child: Row(
+        children: [
+          Column(
+            children: [
+              Expanded(
+                child: (_isLoadingRecent && _isLoadingSaved)
+                    ? const Center(
+                        child: CircularProgressIndicator(color: kPrimaryColor),
+                      )
+                    : RefreshIndicator(
+                        color: kPrimaryColor,
+                        onRefresh: () async {
+                          await Future.wait([_loadSavedNotes(), _loadRecentNotes(), _loadRecentFolders()]);
+                        },
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.translucent,
+                          onTap: _selectionMode ? _clearSelection : null,
+                          child: SingleChildScrollView(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Expanded(
-                                    child: _AnimatedActionButton(
-                                      color: kPrimaryColor,
-                                      icon: Icons.add,
-                                      onTap: () {
-                                        Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                              builder: (context) => const AddNotePage()),
-                                        ).then((_) => _loadNotes());
-                                      },
+                                  // Search bar
+                                  AnimatedPadding(
+                                    duration: const Duration(milliseconds: 180),
+                                    curve: Curves.easeOut,
+                                    padding: EdgeInsets.only(
+                                      top: _selectionMode ? 16 : 0,
                                     ),
-                                  ),
-                                  const SizedBox(width: 16),
-                                  Expanded(
-                                    child: _AnimatedActionButton(
-                                      color: kAccentYellow,
-                                      icon: Icons.star,
-                                      onTap: () {
-                                        Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                              builder: (context) => FavoritesPage()),
-                                        );
-                                      },
-                                    ),
-                                  ),
-                                  const SizedBox(width: 16),
-                                  Expanded(
-                                    child: _AnimatedActionButton(
-                                      color: const Color(0xFF4B5563),
-                                      icon: Icons.delete,
-                                      onTap: () {
-                                        Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder: (context) => const TrashPage(),
-                                          ),
-                                        );
-                                      },
-                                    ),
-                                  )
-                                ],
-                              ),
-                            ),
-
-
-                            const SizedBox(height: 24),
-
-                            // My Notes Header
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                const Text(
-                                  'My Notes',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                                Text(
-                                  '${_filteredNotes.length} note${_filteredNotes.length != 1 ? 's' : ''}',
-                                  style: const TextStyle(
-                                    color: Colors.grey,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                              ],
-                            ),
-
-                            SizedBox(height: _selectionMode ? 0 : 16),
-
-                            // Notes List
-                            if (_filteredNotes.isEmpty)
-                              Center(
-                                child: Padding(
-                                  padding: const EdgeInsets.all(40),
-                                  child: AnimatedContainer(
-                                    duration: const Duration(milliseconds: 200),
-                                    color: _selectionMode
-                                        ? Colors.black.withOpacity(0.08)
-                                        : Colors.transparent,
-                                    child: Column(
-                                      children: [
-                                      Icon(
-                                        Icons.note_add_outlined,
-                                        size: 64,
-                                        color: Colors.grey[600],
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        color: kCardColor,
+                                        borderRadius: BorderRadius.circular(12),
                                       ),
-                                      const SizedBox(height: 16),
-                                      Text(
-                                        _searchController.text.isEmpty
-                                            ? 'No notes yet'
-                                            : 'No notes found',
-                                        style: TextStyle(
-                                          color: Colors.grey[400],
-                                          fontSize: 16,
+                                      child: TextField(
+                                        controller: _searchController,
+                                        decoration: InputDecoration(
+                                          hintText: 'Search by title, tags, or author...',
+                                          hintStyle: const TextStyle(color: Colors.grey),
+                                          prefixIcon: const Icon(Icons.search, color: Colors.grey),
+                                          suffixIcon: _searchQuery.isNotEmpty
+                                              ? IconButton(
+                                                  icon: const Icon(Icons.close, color: Colors.grey),
+                                                  splashRadius: 18,
+                                                  onPressed: () => _searchController.clear(),
+                                                )
+                                              : null,
+                                          border: InputBorder.none,
+                                          contentPadding: const EdgeInsets.symmetric(
+                                              horizontal: 20, vertical: 15),
+                                        ),
+                                        style: const TextStyle(color: Colors.white),
+                                      ),
+                                    ),
+                                  ),
+
+                                  const SizedBox(height: 16),
+
+                                  // Action Buttons
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: _AnimatedActionButton(
+                                          color: kPrimaryColor,
+                                          icon: Icons.add,
+                                          onTap: () {
+                                            Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                  builder: (context) => const AddNotePage()),
+                                            ).then((_) => _loadRecentNotes());
+                                          },
                                         ),
                                       ),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        _searchController.text.isEmpty
-                                            ? 'Tap the + button to add your first note'
-                                            : 'Try a different search term',
-                                        style: TextStyle(
-                                          color: Colors.grey[600],
-                                          fontSize: 14,
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: _AnimatedActionButton(
+                                          color: kAccentYellow,
+                                          icon: Icons.star,
+                                          onTap: () {
+                                            Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                  builder: (context) => FavoritesPage()),
+                                            );
+                                          },
                                         ),
-                                        textAlign: TextAlign.center,
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: _AnimatedActionButton(
+                                          color: const Color(0xFF4B5563),
+                                          icon: Icons.delete,
+                                          onTap: () {
+                                            Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder: (context) => const TrashPage(),
+                                              ),
+                                            );
+                                          },
+                                        ),
                                       ),
                                     ],
                                   ),
-                                ),
-                              )
-                              )
-                            else
-                              ListView.builder(
-                                shrinkWrap: true,
-                                physics: const NeverScrollableScrollPhysics(),
-                                itemCount: _filteredNotes.length,
-                                itemBuilder: (context, index) {
-                                  final note = _filteredNotes[index];
-                                  final noteId = note['id'];
-                                  final isSelected = _selectedNoteIds.contains(noteId);
 
-                                  return GestureDetector(
-                                    onLongPress: () => _onLongPressNote(noteId),
-                                    onTap: () => _onTapNote(
-                                      noteId,
-                                      () {
-                                        FileOpener.openFile(
-                                          context,
-                                          note['file_url'],
-                                          '${note['title']}.${note['file_type']}',
-                                        );
-                                      },
-                                    ),
-                                    child: NoteItem(
-                                      noteId: noteId,
-                                      selectionMode: _selectionMode,
-                                      title: note['title'] ?? 'Untitled',
-                                      description: note['description'],
-                                      subtitle: 'Last edited ${_getTimeAgo(note['updated_at'])}',
-                                      fileUrl: note['file_url'],
-                                      fileType: note['file_type'],
-                                      tags: note['tags'] != null
-                                          ? List<String>.from(note['tags'])
-                                          : [],
-                                      isPublic: note['is_public'] ?? false,
-                                      isFavorite: note['is_favorite'] ?? false,
-                                      isSelected: isSelected, 
-                                      onDelete: () => _deleteNote(noteId, note['file_url']),
-                                      onRefresh: _loadNotes,
-                                    ),
-                                  );
-                                },
-                              ),
-                            if (_savedNotes.isNotEmpty || _isLoadingSaved) ...[
-                              const SizedBox(height: 32),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  const Text(
-                                    'Saved from Community',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                  Text(
-                                    '${_savedNotes.length} note${_savedNotes.length != 1 ? 's' : ''}',
-                                    style: const TextStyle(
-                                      color: Colors.grey,
-                                      fontSize: 14,
-                                    ),
-                                  ),
+                                  const SizedBox(height: 24),
+
+                                  _buildFilesSection(),
+                                  const SizedBox(height: 100),
                                 ],
                               ),
-                              const SizedBox(height: 16),
-                              if (_isLoadingSaved)
-                                const Padding(
-                                  padding: EdgeInsets.symmetric(vertical: 20),
-                                  child: Center(
-                                    child: CircularProgressIndicator(color: kPrimaryColor),
-                                  ),
-                                )
-                              else
-                                ListView.builder(
-                                  shrinkWrap: true,
-                                  physics: const NeverScrollableScrollPhysics(),
-                                  itemCount: _savedNotes.length,
-                                  itemBuilder: (context, index) {
-                                    final note = _savedNotes[index];
-                                    return _SavedNoteTile(
-                                      note: note,
-                                      timeAgo: _getTimeAgo(note['updated_at']),
-                                      onTap: () {
-                                        FileOpener.openFile(
-                                          context,
-                                          note['file_url'],
-                                          '${note['title']}.${note['file_type']}',
-                                        );
-                                      },
-                                      onUnsave: () => _unsaveNote(note['id']),
-                                    );
-                                  },
-                                ),
-                            ],
-                            const SizedBox(height: 100),
-                          ],
+                            ),
+                          ),
                         ),
                       ),
-                    ),
-                  ),
-            ),
+              ),
+            ],
           ),
-        ],
-        
-      ),
-      _buildSelectionToolbar(),
+          _buildSelectionToolbar(),
         ],
       ),
     );
@@ -1033,7 +1402,10 @@ class NoteItem extends StatefulWidget {
   final List<String> tags;
   final bool isPublic;
   final bool isFavorite;
+  final bool isOwned;
+  final String? authorName;
   final VoidCallback onDelete;
+  final VoidCallback? onUnsave;
   final VoidCallback onRefresh;
 
   const NoteItem({
@@ -1050,95 +1422,14 @@ class NoteItem extends StatefulWidget {
     required this.onDelete,
     required this.selectionMode,
     required this.onRefresh,
+    this.isOwned = true,
+    this.authorName,
+    this.onUnsave,
     super.key,
   });
 
   @override
   State<NoteItem> createState() => _NoteItemState();
-}
-
-class _SavedNoteTile extends StatelessWidget {
-  final Map<String, dynamic> note;
-  final String timeAgo;
-  final VoidCallback onTap;
-  final VoidCallback onUnsave;
-
-  const _SavedNoteTile({
-    required this.note,
-    required this.timeAgo,
-    required this.onTap,
-    required this.onUnsave,
-  });
-
-  IconData _getFileIcon() {
-    switch (note['file_type']?.toString().toLowerCase()) {
-      case 'pdf':
-        return Icons.picture_as_pdf;
-      case 'docx':
-        return Icons.description;
-      default:
-        return Icons.insert_drive_file;
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: kCardColor,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: onTap,
-        child: Row(
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: const Color(0xFF3C3C3E),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(_getFileIcon(), color: Colors.white, size: 20),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    note['title'] ?? 'Untitled',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'by ${note['author_name']} • $timeAgo',
-                    style: const TextStyle(color: Colors.grey, fontSize: 13),
-                  ),
-                ],
-              ),
-            ),
-            IconButton(
-              icon: const Icon(Icons.bookmark_remove_outlined, color: Colors.grey),
-              splashRadius: 20,
-              onPressed: onUnsave,
-              tooltip: 'Remove from saved',
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
 
 class _NoteItemState extends State<NoteItem>
@@ -1497,6 +1788,7 @@ class _NoteItemState extends State<NoteItem>
   void _showOptionsMenu(BuildContext context) {
     showModalBottomSheet(
       backgroundColor: kCardColor,
+      useSafeArea: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
@@ -1506,10 +1798,11 @@ class _NoteItemState extends State<NoteItem>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _buildOption(context, Icons.edit, "Edit note", () {
-              Navigator.pop(context);
-              _showEditDialog(context);
-            }),
+            if (widget.isOwned)
+              _buildOption(context, Icons.edit, "Edit note", () {
+                Navigator.pop(context);
+                _showEditDialog(context);
+              }),
             _buildOption(context, Icons.share, "Share", () {
               Navigator.pop(context);
               _shareNote();
@@ -1546,10 +1839,16 @@ class _NoteItemState extends State<NoteItem>
               }
             }),
             const Divider(color: Colors.grey),
-            _buildOption(context, Icons.delete, "Remove", () {
-              Navigator.pop(context);
-              _showDeleteConfirmation(context);
-            }, isDestructive: true),
+            if (widget.isOwned)
+              _buildOption(context, Icons.delete, "Remove", () {
+                Navigator.pop(context);
+                _showDeleteConfirmation(context);
+              }, isDestructive: true)
+            else
+              _buildOption(context, Icons.bookmark_remove_outlined, "Remove from saved", () {
+                Navigator.pop(context);
+                widget.onUnsave?.call();
+              }, isDestructive: true),
           ],
         ),
       ),
@@ -1670,7 +1969,27 @@ class _NoteItemState extends State<NoteItem>
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    if (widget.isPublic)
+                    if (!widget.isOwned)
+                      Container(
+                        margin: const EdgeInsets.only(left: 8),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: kPrimaryColor.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Text(
+                          'Community',
+                          style: TextStyle(
+                            color: kPrimaryColor,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      )
+                    else if (widget.isPublic)
                       Container(
                         margin: const EdgeInsets.only(left: 8),
                         padding: const EdgeInsets.symmetric(
@@ -1688,6 +2007,33 @@ class _NoteItemState extends State<NoteItem>
                             fontSize: 10,
                             fontWeight: FontWeight.w600,
                           ),
+                        ),
+                      )
+                    else
+                      Container(
+                        margin: const EdgeInsets.only(left: 8),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.lock_outline, size: 9, color: Colors.grey[400]),
+                            const SizedBox(width: 3),
+                            Text(
+                              'Private',
+                              style: TextStyle(
+                                color: Colors.grey[400],
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                   ],

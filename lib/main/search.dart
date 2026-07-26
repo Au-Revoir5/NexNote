@@ -430,23 +430,25 @@ class _SearchPageState extends State<SearchPage> {
                                       childAspectRatio: 0.85,
                                     ),
                                     itemBuilder: (context, index) {
-                                      return NoteCard(
-                                        note: filteredNotes[index],
-                                        onTap: (pdfThumb, docxText, pdfBytes) {
-                                          Navigator.push(
-                                            context,
-                                            MaterialPageRoute(
-                                              builder: (_) => NotePreviewPage(
-                                                note: filteredNotes[index],
-                                                pdfThumbnail: pdfThumb,
-                                                docxPreviewText: docxText,
-                                                pdfBytes: pdfBytes,
-                                              ),
-                                            ),
-                                          );
-                                        },
-                                      );
-                                    },
+  final note = filteredNotes[index];
+  return NoteCard(
+    key: ValueKey(note.id),
+    note: note,
+    onTap: (pdfThumb, docxText, pdfBytes) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => NotePreviewPage(
+            note: note,
+            pdfThumbnail: pdfThumb,
+            docxPreviewText: docxText,
+            pdfBytes: pdfBytes,
+          ),
+        ),
+      );
+    },
+  );
+},
                                   ),
                       ),
                       SizedBox(height: 40),
