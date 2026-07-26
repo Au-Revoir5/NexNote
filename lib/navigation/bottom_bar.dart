@@ -1,5 +1,8 @@
+
+
+
 import 'package:flutter/material.dart';
-import 'side_bar.dart';
+
 import '../main/home.dart';
 import '../main/my_notes.dart';
 import '../main/search.dart';
@@ -103,18 +106,6 @@ class _BottomBarState extends State<BottomBar> {
           drawerScrimColor: Colors.transparent,
           extendBodyBehindAppBar: false,
           resizeToAvoidBottomInset: false,
-
-          drawer: _disableDrawer
-              ? null
-              : SideBar(onNavigate: (index) {
-                  if (index < 2) {
-                    _onTabTapped(index);
-                  } else if (index == 2) {
-                    _onTabTapped(2);
-                  } else {
-                    _onTabTapped(index + 1);
-                  }
-                }),
 
           drawerEnableOpenDragGesture: !_disableDrawer,
 
