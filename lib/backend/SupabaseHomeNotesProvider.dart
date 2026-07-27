@@ -78,6 +78,7 @@ class SupabaseHomeNotesProvider implements HomeNotesProvider {
         fileType: n['file_type'],
         authorAvatar: n['profiles']?['avatar_url'],
         authorName: n['profiles']?['username'] ?? 'Anonymous',
+        publisherId: n['publisher_id'] as String?,
       );
     }).toList();
   }
@@ -133,6 +134,7 @@ class SupabaseHomeNotesProvider implements HomeNotesProvider {
       fileUrl: n['file_url'] as String,
       fileType: n['file_type'] as String,
       authorName: n['profiles']?['username'] ?? 'Anonymous',
+      publisherId: n['publisher_id'] as String?,
     );
   }
 }

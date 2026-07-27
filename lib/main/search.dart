@@ -92,30 +92,39 @@ class _SearchPageState extends State<SearchPage> {
         created_at,
         updated_at,
         is_public,
+        publisher_id,
         profiles:publisher_id (
           username,
           avatar_url
           )
         ''')
           .eq('is_public', true)
-          .order('updated_at', ascending: false);
+    .order('updated_at', ascending: false);
+
+      final currentUserId = supabase.auth.currentUser?.id;
 
       final fetchedNotes = (response as List).map((note) {
         final isPublic = note['is_public'] == true;
+        final publisherId = note['publisher_id'] as String?;
         final username = isPublic
             ? (note['profiles']?['username'] ?? 'Anonymous')
             : 'Anonymous';
 
+        final authorLabel = (publisherId != null && publisherId == currentUserId)
+            ? 'Made by You'
+            : 'Made by $username';
+
         return NoteItem(
           id: note['id'],
           title: note['title'] ?? 'Untitled',
-          author: 'Made by $username',
+          author: authorLabel,
           description: note['description'] ?? '', //
           fileUrl: note['file_url'],
           fileType: note['file_type'],
           tags: List<String>.from(note['tags'] ?? []),
           createdAt: DateTime.parse(note['created_at']),
           updatedAt: DateTime.parse(note['updated_at']),
+          publisherId: note['publisher_id'] as String?,
         );
       }).toList();
 
@@ -474,6 +483,7 @@ class NoteItem {
   final List<String> tags;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final String? publisherId;
 
   NoteItem({
     required this.id,
@@ -485,6 +495,7 @@ class NoteItem {
     required this.tags,
     required this.createdAt,
     required this.updatedAt,
+    required this.publisherId,
   });
 
   Color get color {

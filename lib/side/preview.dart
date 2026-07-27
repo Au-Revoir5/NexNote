@@ -37,6 +37,14 @@ class _NotePreviewPageState extends State<NotePreviewPage> {
   bool _loadingFav = true;
   bool _loadingSave = true;
 
+  // Whether the current signed-in user is the one who published this
+  // note to the community. Owners can't save/favorite their own note.
+  bool get _isOwnNote {
+    final user = _supabase.auth.currentUser;
+    if (user == null) return false;
+    return widget.note.publisherId == user.id;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -91,6 +99,11 @@ class _NotePreviewPageState extends State<NotePreviewPage> {
       return;
     }
 
+    if (_isOwnNote) {
+      _showSnack("You can't favorite your own note");
+      return;
+    }
+
     final prevState = _isFavorited;
     setState(() => _isFavorited = !_isFavorited); // optimistic
 
@@ -118,6 +131,11 @@ class _NotePreviewPageState extends State<NotePreviewPage> {
     final user = _supabase.auth.currentUser;
     if (user == null) {
       _showSnack('Please sign in to save notes');
+      return;
+    }
+
+    if (_isOwnNote) {
+      _showSnack("You can't save your own note");
       return;
     }
 
@@ -166,6 +184,8 @@ class _NotePreviewPageState extends State<NotePreviewPage> {
 
   @override
   Widget build(BuildContext context) {
+    final isOwnNote = _isOwnNote;
+
     return Scaffold(
       backgroundColor: kDarkSurface,
       appBar: AppBar(
@@ -176,25 +196,28 @@ class _NotePreviewPageState extends State<NotePreviewPage> {
           onPressed: () => Navigator.pop(context),
         ),
         actions: [
-          // Favorite toggle — lives in the app bar since it's a
-          // lightweight, frequent, low-commitment action.
-          IconButton(
-            tooltip: _isFavorited ? 'Remove favorite' : 'Favorite',
-            onPressed: _loadingFav ? null : _toggleFavorite,
-            icon: Icon(
-              _isFavorited ? Icons.star : Icons.star_border,
-              color: _isFavorited ? kAccentYellow : Colors.grey[400],
+          // Favorite/Save toggles — only shown when viewing someone
+          // else's note. You can't favorite/save your own note, so
+          // for your own notes these are omitted entirely rather
+          // than shown disabled.
+          if (!isOwnNote) ...[
+            IconButton(
+              tooltip: _isFavorited ? 'Remove favorite' : 'Favorite',
+              onPressed: _loadingFav ? null : _toggleFavorite,
+              icon: Icon(
+                _isFavorited ? Icons.star : Icons.star_border,
+                color: _isFavorited ? kAccentYellow : Colors.grey[400],
+              ),
             ),
-          ),
-          // Save toggle — same reasoning.
-          IconButton(
-            tooltip: _isSaved ? 'Remove from saved' : 'Save',
-            onPressed: _loadingSave ? null : _toggleSave,
-            icon: Icon(
-              _isSaved ? Icons.bookmark : Icons.bookmark_border,
-              color: _isSaved ? kPrimaryColor : Colors.grey[400],
+            IconButton(
+              tooltip: _isSaved ? 'Remove from saved' : 'Save',
+              onPressed: _loadingSave ? null : _toggleSave,
+              icon: Icon(
+                _isSaved ? Icons.bookmark : Icons.bookmark_border,
+                color: _isSaved ? kPrimaryColor : Colors.grey[400],
+              ),
             ),
-          ),
+          ],
           const SizedBox(width: 4),
         ],
       ),
