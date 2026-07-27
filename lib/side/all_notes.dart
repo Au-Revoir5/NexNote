@@ -1606,7 +1606,7 @@ class _FoldersPageState extends State<FoldersPage> {
           _isSearchBarVisible
               ? _buildSearchBar()
               : Text(
-                _folderPath.isEmpty ? 'My Files' : _folderPath.last['name'],
+                _folderPath.isEmpty ? 'My Notes' : _folderPath.last['name'],
                 style: const TextStyle(color: Colors.white),
               ),
       actions: [

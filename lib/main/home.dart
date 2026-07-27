@@ -26,6 +26,7 @@ class NotePreview {
   final String fileType;
   final String? authorAvatar;
   final String authorName;
+  final String? publisherId; // NEW
 
   const NotePreview({
     required this.id,
@@ -36,8 +37,8 @@ class NotePreview {
     required this.fileType,
     required this.authorName,
     this.authorAvatar,
+    this.publisherId,
   });
-
 }
 
 abstract class HomeNotesProvider {
@@ -653,20 +654,20 @@ class _NoteThumbnailWithCacheState extends State<NoteThumbnailWithCache> {
   }
 }
 
-  NoteItem _communityToNoteItem(NotePreview note) {
-    return NoteItem(
-      id: note.id,
-      title: note.title.isNotEmpty ? note.title : 'Untitled',
-      description: '',
-      fileUrl: note.fileUrl,
-      fileType: note.fileType,
-      updatedAt: note.updatedAt,
-      createdAt: note.updatedAt,
-      tags: const [],
-      author: note.authorName,
-    );
-  }
-
+NoteItem _communityToNoteItem(NotePreview note) {
+  return NoteItem(
+    id: note.id,
+    title: note.title.isNotEmpty ? note.title : 'Untitled',
+    description: '',
+    fileUrl: note.fileUrl,
+    fileType: note.fileType,
+    updatedAt: note.updatedAt,
+    createdAt: note.updatedAt,
+    tags: const [],
+    author: note.authorName,
+    publisherId: note.publisherId,
+  );
+}
 
  class _CommunityGridCard extends StatelessWidget {
   final NotePreview note;
