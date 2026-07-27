@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:nexnote/backend/file_opener.dart';
 import 'package:nexnote/main/search.dart';
@@ -254,12 +255,55 @@ class _PreviewSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // No thumbnail at all (docx/placeholder cases) — just use the
+    // classic 16:9 card, no decode needed.
+    if (thumbnail == null) {
+      return _buildCard(
+        context,
+        aspectRatio: 16 / 9,
+        child: (fileType == 'docx' &&
+                docxPreviewText != null &&
+                docxPreviewText!.isNotEmpty)
+            ? _DocxTextPreview(docxPreviewText!)
+            : _Placeholder(fileType),
+      );
+    }
+
+    return FutureBuilder<ui.Image>(
+      future: _decodeImage(thumbnail!),
+      builder: (context, snapshot) {
+        final image = snapshot.data;
+        final isPortrait = image != null && image.width < image.height;
+        final aspectRatio = isPortrait ? 3 / 4 : 16 / 9;
+
+        return _buildCard(
+          context,
+          aspectRatio: aspectRatio,
+          child: image == null
+              ? Container(color: Colors.grey[850]) // brief decode placeholder
+              : Image.memory(thumbnail!, fit: BoxFit.cover),
+        );
+      },
+    );
+  }
+
+  Future<ui.Image> _decodeImage(Uint8List bytes) async {
+    final codec = await ui.instantiateImageCodec(bytes);
+    final frame = await codec.getNextFrame();
+    return frame.image;
+  }
+
+  Widget _buildCard(
+    BuildContext context, {
+    required double aspectRatio,
+    required Widget child,
+  }) {
     return Padding(
       padding: kPagePadding,
       child: GestureDetector(
         onTap: onTap,
         child: AspectRatio(
-          aspectRatio: 16 / 9,
+          aspectRatio: aspectRatio,
           child: Stack(
             children: [
               Container(
@@ -269,17 +313,9 @@ class _PreviewSection extends StatelessWidget {
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(12),
-                  child: thumbnail != null
-                      ? Image.memory(thumbnail!, fit: BoxFit.cover)
-                      : (fileType == 'docx' &&
-                              docxPreviewText != null &&
-                              docxPreviewText!.isNotEmpty)
-                          ? _DocxTextPreview(docxPreviewText!)
-                          : _Placeholder(fileType),
+                  child: child,
                 ),
               ),
-              // Small expand affordance so it's clear the preview is
-              // tappable / cropped, without adding another button.
               if (onTap != null)
                 Positioned(
                   right: 8,

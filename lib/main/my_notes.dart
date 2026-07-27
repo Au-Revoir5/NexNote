@@ -6,7 +6,7 @@ import 'package:nexnote/backend/file_opener.dart';
 import 'add.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:flutter/services.dart';
-import '../side/folders_page.dart';
+import '../side/All_notes.dart';
 
 const kPrimaryColor = Color(0xFF6366F1);
 const kDarkSurface = Color(0xFF1C1C1E);
@@ -1147,7 +1147,15 @@ class _NotesPageState extends State<NotesPage> {
               itemCount: folders.length,
               itemBuilder: (context, index) => _buildFolderGridTile(folders[index]),
             ),
-          if (folders.isNotEmpty && notes.isNotEmpty) const SizedBox(height: 16),
+          if (folders.isNotEmpty && notes.isNotEmpty) ...[
+  const SizedBox(height: 16),
+  const Divider(
+    color: Color(0xFF3A3A3C),
+    thickness: 1,
+    height: 1,
+  ),
+  const SizedBox(height: 16),
+],
           if (notes.isNotEmpty)
             ListView.builder(
               shrinkWrap: true,
