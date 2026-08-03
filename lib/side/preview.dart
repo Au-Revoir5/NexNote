@@ -1,9 +1,9 @@
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
-import 'package:nexnote/backend/file_opener.dart';
+import 'package:nexnote/helpers/file_opener.dart';
 import 'package:nexnote/main/search.dart';
-import 'package:nexnote/backend/fullscreen_pdf_page.dart';
+import 'package:nexnote/helpers/fullscreen_pdf_page.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 const kPrimaryColor = Color(0xFF6366F1);

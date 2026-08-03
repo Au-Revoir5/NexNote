@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:nexnote/backend/file_opener.dart';
+import 'package:nexnote/helpers/file_opener.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../backend/thumbnail/note_thumbnail.dart';
-import '../backend/thumbnail/note_thumbnail_cache.dart';
-import '../backend/thumbnail/note_thumbnail_generator.dart';
+import '../helpers/thumbnail/note_thumbnail.dart';
+import '../helpers/thumbnail/note_thumbnail_cache.dart';
+import '../helpers/thumbnail/note_thumbnail_generator.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:flutter/services.dart';
 import 'dart:async';

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../backend/supabase_config.dart';
+import '../helpers/supabase_config.dart';
 import '../navigation/bottom_bar.dart';
 
 const kPrimaryColor = Color(0xFF6366F1);
