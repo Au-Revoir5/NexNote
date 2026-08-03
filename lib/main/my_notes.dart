@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../side/favorites.dart';
 import '../side/trash.dart';
-import 'package:nexnote/backend/file_opener.dart';
+import 'package:nexnote/helpers/file_opener.dart';
 import 'add.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:flutter/services.dart';

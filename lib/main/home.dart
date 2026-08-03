@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../backend/SupabaseHomeNotesProvider.dart';
-import '../backend/thumbnail/note_thumbnail.dart';
-import '../backend/thumbnail/note_thumbnail_cache.dart';
-import '../backend/thumbnail/note_thumbnail_generator.dart';
-import '../backend/file_opener.dart';
+import '../helpers/SupabaseHomeNotesProvider.dart';
+import '../helpers/thumbnail/note_thumbnail.dart';
+import '../helpers/thumbnail/note_thumbnail_cache.dart';
+import '../helpers/thumbnail/note_thumbnail_generator.dart';
+import '../helpers/file_opener.dart';
 import 'dart:typed_data';
 import '../side/preview.dart';
 import '../main/search.dart' show NoteItem;

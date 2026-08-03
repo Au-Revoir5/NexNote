@@ -1,9 +1,9 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../backend/thumbnail/note_thumbnail.dart';
-import '../backend/thumbnail/note_thumbnail_cache.dart';
-import '../backend/thumbnail/note_thumbnail_generator.dart';
+import '../helpers/thumbnail/note_thumbnail.dart';
+import '../helpers/thumbnail/note_thumbnail_cache.dart';
+import '../helpers/thumbnail/note_thumbnail_generator.dart';
 
 const kPrimaryColor = Color(0xFF6366F1);
 const kDarkSurface = Color(0xFF1C1C1E);
