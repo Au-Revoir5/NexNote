@@ -62,19 +62,21 @@ class _NotePreviewPageState extends State<NotePreviewPage> {
     }
 
     try {
-      final favRes = await _supabase
-          .from('favorites')
-          .select('id')
-          .eq('user_id', user.id)
-          .eq('note_id', widget.note.id)
-          .maybeSingle();
+      final favRes =
+          await _supabase
+              .from('favorites')
+              .select('id')
+              .eq('user_id', user.id)
+              .eq('note_id', widget.note.id)
+              .maybeSingle();
 
-      final saveRes = await _supabase
-          .from('saved_notes')
-          .select('id')
-          .eq('user_id', user.id)
-          .eq('note_id', widget.note.id)
-          .maybeSingle();
+      final saveRes =
+          await _supabase
+              .from('saved_notes')
+              .select('id')
+              .eq('user_id', user.id)
+              .eq('note_id', widget.note.id)
+              .maybeSingle();
 
       if (!mounted) return;
       setState(() {
@@ -157,7 +159,9 @@ class _NotePreviewPageState extends State<NotePreviewPage> {
       }
 
       if (mounted) {
-        _showSnack(prevState ? 'Removed from saved notes' : 'Saved to your library');
+        _showSnack(
+          prevState ? 'Removed from saved notes' : 'Saved to your library',
+        );
       }
     } catch (e) {
       if (!mounted) return;
@@ -167,9 +171,7 @@ class _NotePreviewPageState extends State<NotePreviewPage> {
   }
 
   void _showSnack(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg)),
-    );
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
   String _timeAgo(DateTime dateTime) {
@@ -230,19 +232,21 @@ class _NotePreviewPageState extends State<NotePreviewPage> {
               widget.pdfThumbnail,
               widget.docxPreviewText,
               widget.note.fileType,
-              onTap: widget.pdfBytes == null
-                  ? null
-                  : () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => FullscreenPdfPage(
-                            pdfBytes: widget.pdfBytes!,
-                            title: widget.note.title,
+              onTap:
+                  widget.pdfBytes == null
+                      ? null
+                      : () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder:
+                                (_) => FullscreenPdfPage(
+                                  pdfBytes: widget.pdfBytes!,
+                                  title: widget.note.title,
+                                ),
                           ),
-                        ),
-                      );
-                    },
+                        );
+                      },
             ),
             if (widget.note.description.isNotEmpty) ...[
               const _SectionLabel('Description'),
@@ -284,11 +288,12 @@ class _PreviewSection extends StatelessWidget {
       return _buildCard(
         context,
         aspectRatio: 16 / 9,
-        child: (fileType == 'docx' &&
-                docxPreviewText != null &&
-                docxPreviewText!.isNotEmpty)
-            ? _DocxTextPreview(docxPreviewText!)
-            : _Placeholder(fileType),
+        child:
+            (fileType == 'docx' &&
+                    docxPreviewText != null &&
+                    docxPreviewText!.isNotEmpty)
+                ? _DocxTextPreview(docxPreviewText!)
+                : _Placeholder(fileType),
       );
     }
 
@@ -302,9 +307,12 @@ class _PreviewSection extends StatelessWidget {
         return _buildCard(
           context,
           aspectRatio: aspectRatio,
-          child: image == null
-              ? Container(color: Colors.grey[850]) // brief decode placeholder
-              : Image.memory(thumbnail!, fit: BoxFit.cover),
+          child:
+              image == null
+                  ? Container(
+                    color: Colors.grey[850],
+                  ) // brief decode placeholder
+                  : Image.memory(thumbnail!, fit: BoxFit.cover),
         );
       },
     );
@@ -378,11 +386,7 @@ class _DescriptionSection extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(20, 6, 20, 0),
       child: Text(
         text!,
-        style: TextStyle(
-          color: Colors.grey[300],
-          fontSize: 14,
-          height: 1.6,
-        ),
+        style: TextStyle(color: Colors.grey[300], fontSize: 14, height: 1.6),
         maxLines: 6,
         overflow: TextOverflow.ellipsis,
       ),
@@ -423,23 +427,24 @@ class _TagSection extends StatelessWidget {
       child: Wrap(
         spacing: 8,
         runSpacing: 8,
-        children: tags.map((tag) {
-          return Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: Colors.grey[800],
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.grey[700]!),
-            ),
-            child: Text(
-              tag,
-              style: TextStyle(
-                color: Colors.grey[300],
-                fontSize: 12,
-              ),
-            ),
-          );
-        }).toList(),
+        children:
+            tags.map((tag) {
+              return Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.grey[800],
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.grey[700]!),
+                ),
+                child: Text(
+                  tag,
+                  style: TextStyle(color: Colors.grey[300], fontSize: 12),
+                ),
+              );
+            }).toList(),
       ),
     );
   }
@@ -472,16 +477,10 @@ class _AuthorRow extends StatelessWidget {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                note.author,
-                style: const TextStyle(color: Colors.white),
-              ),
+              Text(note.author, style: const TextStyle(color: Colors.white)),
               Text(
                 'Updated ${timeAgo(note.updatedAt)}',
-                style: TextStyle(
-                  color: Colors.grey[500],
-                  fontSize: 12,
-                ),
+                style: TextStyle(color: Colors.grey[500], fontSize: 12),
               ),
             ],
           ),
@@ -501,11 +500,7 @@ class _Placeholder extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.insert_drive_file,
-            size: 48,
-            color: Colors.grey[700],
-          ),
+          Icon(Icons.insert_drive_file, size: 48, color: Colors.grey[700]),
           const SizedBox(height: 8),
           Text(
             fileType.toUpperCase(),
@@ -612,10 +607,7 @@ class _DocxTextPreview extends StatelessWidget {
               title,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
             Expanded(

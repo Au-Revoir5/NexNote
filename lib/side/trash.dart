@@ -51,25 +51,25 @@ class _TrashPageState extends State<TrashPage> {
     } catch (e) {
       setState(() => _isLoading = false);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to load trash: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to load trash: $e')));
       }
     }
   }
 
   Future<void> _restoreNote(String noteId) async {
-    await _supabase.from('notes').update({
-      'deleted_at': null,
-      'delete_expires_at': null,
-    }).eq('id', noteId);
+    await _supabase
+        .from('notes')
+        .update({'deleted_at': null, 'delete_expires_at': null})
+        .eq('id', noteId);
 
     await _loadTrash();
 
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Note restored')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Note restored')));
     }
   }
 
@@ -92,9 +92,9 @@ class _TrashPageState extends State<TrashPage> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Delete failed: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Delete failed: $e')));
       }
     }
   }
@@ -107,10 +107,18 @@ class _TrashPageState extends State<TrashPage> {
   void _sortItems(List<Map<String, dynamic>> items) {
     switch (sortBy) {
       case "Last Deleted (Recent)":
-        items.sort((a, b) => DateTime.parse(b['deleted_at']).compareTo(DateTime.parse(a['deleted_at'])));
+        items.sort(
+          (a, b) => DateTime.parse(
+            b['deleted_at'],
+          ).compareTo(DateTime.parse(a['deleted_at'])),
+        );
         break;
       case "Last Deleted (Oldest)":
-        items.sort((a, b) => DateTime.parse(a['deleted_at']).compareTo(DateTime.parse(b['deleted_at'])));
+        items.sort(
+          (a, b) => DateTime.parse(
+            a['deleted_at'],
+          ).compareTo(DateTime.parse(b['deleted_at'])),
+        );
         break;
       case "Alphabetical":
         items.sort((a, b) => (a['title'] ?? '').compareTo(b['title'] ?? ''));
@@ -146,74 +154,105 @@ class _TrashPageState extends State<TrashPage> {
           ),
         ),
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: kPrimaryColor))
-          : Column(
-              children: [
-                Padding(
-                  padding: EdgeInsets.symmetric(horizontal: padding, vertical: padding / 2),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: _showSortOptions,
-                          child: Row(
-                            children: [
-                              Flexible(
-                                child: Text(
-                                  sortBy,
-                                  style: TextStyle(color: Colors.white70, fontSize: 16 * textScale),
-                                  overflow: TextOverflow.ellipsis,
+      body:
+          _isLoading
+              ? const Center(
+                child: CircularProgressIndicator(color: kPrimaryColor),
+              )
+              : Column(
+                children: [
+                  Padding(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: padding,
+                      vertical: padding / 2,
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: _showSortOptions,
+                            child: Row(
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    sortBy,
+                                    style: TextStyle(
+                                      color: Colors.white70,
+                                      fontSize: 16 * textScale,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
                                 ),
-                              ),
-                              const Icon(Icons.keyboard_arrow_down, color: Colors.white70),
-                            ],
+                                const Icon(
+                                  Icons.keyboard_arrow_down,
+                                  color: Colors.white70,
+                                ),
+                              ],
+                            ),
                           ),
                         ),
-                      ),
-                      IconButton(
-                        icon: Icon(
-                          isGridView ? Icons.grid_view : Icons.list,
-                          color: Colors.white70,
-                          size: iconSize,
+                        IconButton(
+                          icon: Icon(
+                            isGridView ? Icons.list : Icons.grid_view,
+                            color: Colors.white70,
+                            size: iconSize,
+                          ),
+                          onPressed: () {
+                            setState(() {
+                              isGridView = !isGridView;
+                            });
+                          },
                         ),
-                        onPressed: () {
-                          setState(() {
-                            isGridView = !isGridView;
-                          });
-                        },
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-                Expanded(
-                  child: _trashedNotes.isEmpty
-                      ? Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.delete_outline, size: 64, color: Colors.grey[600]),
-                              const SizedBox(height: 16),
-                              Text('Trash is empty', style: TextStyle(color: Colors.grey[400], fontSize: 16)),
-                              const SizedBox(height: 8),
-                              Text(
-                                'Deleted notes will appear here',
-                                style: TextStyle(color: Colors.grey[600], fontSize: 14),
-                                textAlign: TextAlign.center,
+                  Expanded(
+                    child:
+                        _trashedNotes.isEmpty
+                            ? Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.delete_outline,
+                                    size: 64,
+                                    color: Colors.grey[600],
+                                  ),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    'Trash is empty',
+                                    style: TextStyle(
+                                      color: Colors.grey[400],
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    'Deleted notes will appear here',
+                                    style: TextStyle(
+                                      color: Colors.grey[600],
+                                      fontSize: 14,
+                                    ),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ],
                               ),
-                            ],
-                          ),
-                        )
-                      : RefreshIndicator(
-                          color: kPrimaryColor,
-                          onRefresh: _loadTrash,
-                          child: isGridView
-                              ? _buildGridView(sortedItems, width)
-                              : _buildListView(sortedItems, textScale, iconSize),
-                        ),
-                ),
-              ],
-            ),
+                            )
+                            : RefreshIndicator(
+                              color: kPrimaryColor,
+                              onRefresh: _loadTrash,
+                              child:
+                                  isGridView
+                                      ? _buildGridView(sortedItems, width)
+                                      : _buildListView(
+                                        sortedItems,
+                                        textScale,
+                                        iconSize,
+                                      ),
+                            ),
+                  ),
+                ],
+              ),
     );
   }
 
@@ -245,8 +284,15 @@ class _TrashPageState extends State<TrashPage> {
   Widget _sortOption(String option) {
     final isSelected = sortBy == option;
     return ListTile(
-      title: Text(option, style: TextStyle(color: isSelected ? kPrimaryColor : Colors.white, fontSize: 16)),
-      trailing: isSelected ? const Icon(Icons.check, color: kPrimaryColor) : null,
+      title: Text(
+        option,
+        style: TextStyle(
+          color: isSelected ? kPrimaryColor : Colors.white,
+          fontSize: 16,
+        ),
+      ),
+      trailing:
+          isSelected ? const Icon(Icons.check, color: kPrimaryColor) : null,
       onTap: () {
         setState(() {
           sortBy = option;
@@ -268,10 +314,10 @@ class _TrashPageState extends State<TrashPage> {
       itemCount: items.length,
       itemBuilder: (context, index) {
         final note = items[index];
-        final days = note['delete_expires_at'] == null
-        ? 0
-        : _daysRemaining(note['delete_expires_at'])
-;
+        final days =
+            note['delete_expires_at'] == null
+                ? 0
+                : _daysRemaining(note['delete_expires_at']);
         return TrashGridItemWidget(
           note: note,
           daysRemaining: days,
@@ -281,16 +327,20 @@ class _TrashPageState extends State<TrashPage> {
     );
   }
 
-  Widget _buildListView(List<Map<String, dynamic>> items, double textScale, double iconSize) {
+  Widget _buildListView(
+    List<Map<String, dynamic>> items,
+    double textScale,
+    double iconSize,
+  ) {
     return ListView.builder(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       itemCount: items.length,
       itemBuilder: (context, index) {
         final note = items[index];
-        final days = note['delete_expires_at'] == null
-        ? 0
-        : _daysRemaining(note['delete_expires_at'])
-;
+        final days =
+            note['delete_expires_at'] == null
+                ? 0
+                : _daysRemaining(note['delete_expires_at']);
         return TrashItemWidget(
           note: note,
           daysRemaining: days,
@@ -310,10 +360,7 @@ class _TrashPageState extends State<TrashPage> {
     bool isDestructive = false,
   }) {
     return ListTile(
-      leading: Icon(
-        icon,
-        color: isDestructive ? Colors.red : Colors.white,
-      ),
+      leading: Icon(icon, color: isDestructive ? Colors.red : Colors.white),
       title: Text(
         label,
         style: TextStyle(
@@ -332,61 +379,67 @@ class _TrashPageState extends State<TrashPage> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       context: context,
-      builder: (context) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _buildOption(
-              context,
-              Icons.restore,
-              "Restore",
-              () {
-                Navigator.pop(context);
-                _restoreNote(note['id']);
-              },
+      builder:
+          (context) => Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildOption(context, Icons.restore, "Restore", () {
+                  Navigator.pop(context);
+                  _restoreNote(note['id']);
+                }),
+                const Divider(color: Colors.grey),
+                _buildOption(
+                  context,
+                  Icons.delete_forever,
+                  "Delete Forever",
+                  () {
+                    Navigator.pop(context);
+                    _showDeleteConfirmation(note);
+                  },
+                  isDestructive: true,
+                ),
+              ],
             ),
-            const Divider(color: Colors.grey),
-            _buildOption(
-              context,
-              Icons.delete_forever,
-              "Delete Forever",
-              () {
-                Navigator.pop(context);
-                _showDeleteConfirmation(note);
-              },
-              isDestructive: true,
-            ),
-          ],
-        ),
-      ),
+          ),
     );
   }
 
   void _showDeleteConfirmation(Map<String, dynamic> note) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: kCardColor,
-        title: const Text('Delete Forever', style: TextStyle(color: Colors.white)),
-        content: const Text(
-          'Are you sure you want to permanently delete this note? This action cannot be undone.',
-          style: TextStyle(color: Colors.grey),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+      builder:
+          (context) => AlertDialog(
+            backgroundColor: kCardColor,
+            title: const Text(
+              'Delete Forever',
+              style: TextStyle(color: Colors.white),
+            ),
+            content: const Text(
+              'Are you sure you want to permanently delete this note? This action cannot be undone.',
+              style: TextStyle(color: Colors.grey),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text(
+                  'Cancel',
+                  style: TextStyle(color: Colors.grey),
+                ),
+              ),
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _deleteForever(note['id'], note['file_url']);
+                },
+                child: const Text(
+                  'Delete Forever',
+                  style: TextStyle(color: Colors.red),
+                ),
+              ),
+            ],
           ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _deleteForever(note['id'], note['file_url']);
-            },
-            child: const Text('Delete Forever', style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
     );
   }
 }
@@ -417,7 +470,9 @@ class TrashGridItemWidget extends StatelessWidget {
           AspectRatio(
             aspectRatio: 16 / 9,
             child: ClipRRect(
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(12),
+              ),
               child: Stack(
                 fit: StackFit.expand,
                 children: [
@@ -458,14 +513,22 @@ class TrashGridItemWidget extends StatelessWidget {
                     Expanded(
                       child: Text(
                         note['title'] ?? 'Untitled',
-                        style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     GestureDetector(
                       onTap: onMenuTap,
-                      child: Icon(Icons.more_vert, color: Colors.grey[400], size: 18),
+                      child: Icon(
+                        Icons.more_vert,
+                        color: Colors.grey[400],
+                        size: 18,
+                      ),
                     ),
                   ],
                 ),
@@ -491,9 +554,7 @@ class TrashGridItemWidget extends StatelessWidget {
           fileType: note['file_type'],
         ),
         Container(
-          decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.35),
-          ),
+          decoration: BoxDecoration(color: Colors.black.withOpacity(0.35)),
           alignment: Alignment.center,
           child: const Icon(
             Icons.lock_outline,
@@ -572,18 +633,29 @@ class TrashItemWidget extends StatelessWidget {
                 children: [
                   Text(
                     note['title'] ?? 'Untitled',
-                    style: TextStyle(color: Colors.white, fontSize: 16 * textScale, fontWeight: FontWeight.w500),
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16 * textScale,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     "Deletes in $daysRemaining day${daysRemaining != 1 ? 's' : ''}",
-                    style: TextStyle(color: Colors.redAccent, fontSize: 13 * textScale),
+                    style: TextStyle(
+                      color: Colors.redAccent,
+                      fontSize: 13 * textScale,
+                    ),
                   ),
                 ],
               ),
             ),
             IconButton(
-              icon: Icon(Icons.more_vert, color: Colors.grey[400], size: iconSize),
+              icon: Icon(
+                Icons.more_vert,
+                color: Colors.grey[400],
+                size: iconSize,
+              ),
               onPressed: onMenuTap,
             ),
           ],
@@ -631,8 +703,7 @@ class NoteThumbnailWithCache extends StatefulWidget {
   });
 
   @override
-  State<NoteThumbnailWithCache> createState() =>
-      _NoteThumbnailWithCacheState();
+  State<NoteThumbnailWithCache> createState() => _NoteThumbnailWithCacheState();
 }
 
 class _NoteThumbnailWithCacheState extends State<NoteThumbnailWithCache> {
