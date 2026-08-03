@@ -22,11 +22,12 @@ class _ProfilePageState extends State<ProfilePage> {
     if (user == null) return;
 
     // get from profiles table
-    final profile = await Supabase.instance.client
-        .from('profiles')
-        .select()
-        .eq('id', user.id)
-        .single();
+    final profile =
+        await Supabase.instance.client
+            .from('profiles')
+            .select()
+            .eq('id', user.id)
+            .single();
 
     setState(() {
       userName = profile['username'] ?? 'Unknown';
@@ -35,7 +36,9 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   void _editName() {
-    TextEditingController nameController = TextEditingController(text: userName);
+    TextEditingController nameController = TextEditingController(
+      text: userName,
+    );
 
     showDialog(
       context: context,
@@ -99,125 +102,148 @@ class _ProfilePageState extends State<ProfilePage> {
           icon: Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
-        title: Text('Your Profile',
-            style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600)),
+        title: Text(
+          'Your Profile',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
         centerTitle: true,
       ),
-      body: userName.isEmpty
-          ? Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              child: Padding(
-                padding: EdgeInsets.all(20),
-                child: Column(
-                  children: [
-                    SizedBox(height: 20),
+      body:
+          userName.isEmpty
+              ? Center(child: CircularProgressIndicator())
+              : SingleChildScrollView(
+                child: Padding(
+                  padding: EdgeInsets.all(20),
+                  child: Column(
+                    children: [
+                      SizedBox(height: 20),
 
-                    // Avatar
-                    Center(
-                      child: GestureDetector(
-                        onTap: () {},
-                        child: CircleAvatar(
-                          radius: 60,
-                          backgroundColor: Color(0xFF2C2C2E),
-                          child: ClipOval(
-                            child: Image.network(
-                              'https://api.dicebear.com/7.x/avataaars/png?seed=$userName',
-                              width: 120,
-                              height: 120,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => Icon(Icons.person, color: Colors.white, size: 60),
+                      // Avatar
+                      Center(
+                        child: GestureDetector(
+                          onTap: () {},
+                          child: CircleAvatar(
+                            radius: 60,
+                            backgroundColor: Color(0xFF2C2C2E),
+                            child: ClipOval(
+                              child: Image.network(
+                                'https://api.dicebear.com/7.x/avataaars/png?seed=$userName',
+                                width: 120,
+                                height: 120,
+                                fit: BoxFit.cover,
+                                errorBuilder:
+                                    (_, __, ___) => Icon(
+                                      Icons.person,
+                                      color: Colors.white,
+                                      size: 60,
+                                    ),
+                              ),
                             ),
                           ),
                         ),
                       ),
-                    ),
 
-                    SizedBox(height: 16),
+                      SizedBox(height: 16),
 
-                    // Name + Edit button
-                    GestureDetector(
-                      onTap: _editName,
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            userName,
-                            style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
-                          ),
-                          SizedBox(width: 8),
-                          Icon(Icons.edit, color: Colors.white, size: 20),
-                        ],
+                      // Name + Edit button
+                      GestureDetector(
+                        onTap: _editName,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              userName,
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            SizedBox(width: 8),
+                            Icon(Icons.edit, color: Colors.white, size: 20),
+                          ],
+                        ),
                       ),
-                    ),
 
-                    SizedBox(height: 4),
+                      SizedBox(height: 4),
 
-                    Text(
-                      userEmail,
-                      style: TextStyle(color: Colors.grey, fontSize: 14),
-                    ),
-
-                    SizedBox(height: 32),
-
-                    // Stats
-                    Container(
-                      padding: EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: Color(0xFF2C2C2E),
-                        borderRadius: BorderRadius.circular(16),
+                      Text(
+                        userEmail,
+                        style: TextStyle(color: Colors.grey, fontSize: 14),
                       ),
-                      child: Column(
-                        children: [
-                          StatisticRow(
-                            icon: Icons.note,
-                            iconColor: Color(0xFFEF4444),
-                            text: '24 Notes Created',
-                          ),
-                          SizedBox(height: 16),
-                          StatisticRow(
-                            icon: Icons.compare_arrows,
-                            iconColor: Color(0xFF3B82F6),
-                            text: '8 Comparisons Done',
-                          ),
-                          SizedBox(height: 16),
-                          StatisticRow(
-                            icon: Icons.star,
-                            iconColor: Color(0xFFFBBF24),
-                            text: '10 Starred Notes',
-                          ),
-                        ],
-                      ),
-                    ),
 
-                    SizedBox(height: 32),
+                      SizedBox(height: 32),
 
-                    // Logout
-                    GestureDetector(
-                      onTap: () async {
-                        await Supabase.instance.client.auth.signOut();
-                        Navigator.pushReplacementNamed(context, '/');
-                      },
-                      child: Container(
-                        width: double.infinity,
-                        padding: EdgeInsets.symmetric(vertical: 16),
+                      // Stats
+                      Container(
+                        padding: EdgeInsets.all(20),
                         decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Color(0xFFEF4444), width: 1.5),
+                          color: Color(0xFF2C2C2E),
+                          borderRadius: BorderRadius.circular(16),
                         ),
-                        child: Center(
-                          child: Text(
-                            'Log Out',
-                            style: TextStyle(color: Color(0xFFEF4444), fontSize: 16, fontWeight: FontWeight.w600),
+                        child: Column(
+                          children: [
+                            StatisticRow(
+                              icon: Icons.note,
+                              iconColor: Color(0xFFEF4444),
+                              text: '24 Notes Created',
+                            ),
+                            SizedBox(height: 16),
+                            StatisticRow(
+                              icon: Icons.compare_arrows,
+                              iconColor: Color(0xFF3B82F6),
+                              text: '8 Comparisons Done',
+                            ),
+                            SizedBox(height: 16),
+                            StatisticRow(
+                              icon: Icons.star,
+                              iconColor: Color(0xFFFBBF24),
+                              text: '10 Starred Notes',
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      SizedBox(height: 32),
+
+                      // Logout
+                      GestureDetector(
+                        onTap: () async {
+                          await Supabase.instance.client.auth.signOut();
+                          Navigator.pushReplacementNamed(context, '/');
+                        },
+                        child: Container(
+                          width: double.infinity,
+                          padding: EdgeInsets.symmetric(vertical: 16),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: Color(0xFFEF4444),
+                              width: 1.5,
+                            ),
+                          ),
+                          child: Center(
+                            child: Text(
+                              'Log Out',
+                              style: TextStyle(
+                                color: Color(0xFFEF4444),
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
                           ),
                         ),
                       ),
-                    ),
 
-                    SizedBox(height: 40),
-                  ],
+                      SizedBox(height: 40),
+                    ],
+                  ),
                 ),
               ),
-            ),
     );
   }
 }
@@ -248,7 +274,11 @@ class StatisticRow extends StatelessWidget {
         SizedBox(width: 16),
         Text(
           text,
-          style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w500),
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 16,
+            fontWeight: FontWeight.w500,
+          ),
         ),
       ],
     );

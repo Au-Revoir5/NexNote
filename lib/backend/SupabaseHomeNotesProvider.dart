@@ -34,14 +34,12 @@ class SupabaseHomeNotesProvider implements HomeNotesProvider {
 
     print('🟢 recentNotes(): raw result = $res');
 
-    final list = (res as List)
-        .map((e) => _mapNote(e as Map<String, dynamic>))
-        .toList();
+    final list =
+        (res as List).map((e) => _mapNote(e as Map<String, dynamic>)).toList();
 
     print('🟢 recentNotes(): mapped length = ${list.length}');
     return list;
   }
-
 
   // ---------------- COMMUNITY ----------------
   @override
@@ -82,7 +80,6 @@ class SupabaseHomeNotesProvider implements HomeNotesProvider {
       );
     }).toList();
   }
-
 
   // ---------------- FAVORITES ----------------
   @override

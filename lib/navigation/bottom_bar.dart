@@ -1,13 +1,10 @@
-
-
-
 import 'package:flutter/material.dart';
 
 import '../main/home.dart';
 import '../main/my_notes.dart';
 import '../main/search.dart';
 import '../main/add.dart';
-import '../side/favorites.dart'; 
+import '../side/favorites.dart';
 import 'package:nexnote/side/profile.dart';
 
 // Constants for reuse
@@ -86,13 +83,12 @@ class _BottomBarState extends State<BottomBar> {
     }
   }
 
-
   @override
   Widget build(BuildContext context) {
     // Get screen dimensions without keyboard insets
     final mediaQuery = MediaQuery.of(context);
     final screenWidth = mediaQuery.size.width;
-    
+
     return MediaQuery.removePadding(
       context: context,
       removeBottom: true,
@@ -109,46 +105,49 @@ class _BottomBarState extends State<BottomBar> {
 
           drawerEnableOpenDragGesture: !_disableDrawer,
 
-          appBar: _hideAppBar
-          ? null
-          : AppBar(
-              title: Text(_getPageTitle()),
-              backgroundColor: kDarkSurface,
-              elevation: 0,
-              surfaceTintColor: Colors.transparent,
-              shadowColor: Colors.transparent,
-              titleTextStyle: const TextStyle(
-                color: Colors.white,
-                fontSize: 20,
-                fontWeight: FontWeight.w600,
-              ),
-              iconTheme: const IconThemeData(color: Colors.white),
-              actions: [
-                Padding(
-                  padding: const EdgeInsets.only(right: 16.0),
-                  child: GestureDetector(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => ProfilePage()),
-                      );
-                    },
-                    child: CircleAvatar(
-                      radius: 18,
-                      backgroundColor: Colors.white,
-                      child: const Text(
-                        "PFP",
-                        style: TextStyle(
-                          color: Colors.black,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
+          appBar:
+              _hideAppBar
+                  ? null
+                  : AppBar(
+                    title: Text(_getPageTitle()),
+                    backgroundColor: kDarkSurface,
+                    elevation: 0,
+                    surfaceTintColor: Colors.transparent,
+                    shadowColor: Colors.transparent,
+                    titleTextStyle: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    iconTheme: const IconThemeData(color: Colors.white),
+                    actions: [
+                      Padding(
+                        padding: const EdgeInsets.only(right: 16.0),
+                        child: GestureDetector(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => ProfilePage(),
+                              ),
+                            );
+                          },
+                          child: CircleAvatar(
+                            radius: 18,
+                            backgroundColor: Colors.white,
+                            child: const Text(
+                              "PFP",
+                              style: TextStyle(
+                                color: Colors.black,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
                         ),
                       ),
-                    ),
+                    ],
                   ),
-                ),
-              ],
-            ),
 
           body: Stack(
             children: [
@@ -158,11 +157,16 @@ class _BottomBarState extends State<BottomBar> {
                   padding: const EdgeInsets.only(bottom: 36),
                   child: AnimatedSwitcher(
                     duration: const Duration(milliseconds: 300),
-                    transitionBuilder: (Widget child, Animation<double> animation) {
+                    transitionBuilder: (
+                      Widget child,
+                      Animation<double> animation,
+                    ) {
                       return SlideTransition(
                         position: animation.drive(
-                          Tween(begin: const Offset(0.1, 0), end: Offset.zero)
-                              .chain(CurveTween(curve: Curves.easeOut)),
+                          Tween(
+                            begin: const Offset(0.1, 0),
+                            end: Offset.zero,
+                          ).chain(CurveTween(curve: Curves.easeOut)),
                         ),
                         child: child,
                       );
@@ -175,7 +179,7 @@ class _BottomBarState extends State<BottomBar> {
                   ),
                 ),
               ),
-              
+
               // Fixed Bottom Navigation Bar with absolute positioning
               Positioned(
                 left: 0,
@@ -199,11 +203,27 @@ class _BottomBarState extends State<BottomBar> {
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceAround,
                             children: <Widget>[
-                              _buildTabItem(icon: Icons.home, index: 0, label: 'Home'),
-                              _buildTabItem(icon: Icons.search, index: 1, label: 'Search'),
+                              _buildTabItem(
+                                icon: Icons.home,
+                                index: 0,
+                                label: 'Home',
+                              ),
+                              _buildTabItem(
+                                icon: Icons.search,
+                                index: 1,
+                                label: 'Search',
+                              ),
                               _buildCenterLabel(index: 2, label: 'Add'),
-                              _buildTabItem(icon: Icons.star, index: 3, label: 'Favorites'), // ⬅️ changed
-                              _buildTabItem(icon: Icons.note, index: 4, label: 'Notes'),
+                              _buildTabItem(
+                                icon: Icons.star,
+                                index: 3,
+                                label: 'Favorites',
+                              ), // ⬅️ changed
+                              _buildTabItem(
+                                icon: Icons.note,
+                                index: 4,
+                                label: 'Notes',
+                              ),
                             ],
                           ),
                         ),
@@ -213,7 +233,6 @@ class _BottomBarState extends State<BottomBar> {
                 ),
               ),
 
-              
               // Fixed Floating Action Button with absolute positioning
               Positioned(
                 left: screenWidth / 2 - 28,
@@ -274,7 +293,7 @@ class _BottomBarState extends State<BottomBar> {
     } else {
       pageIndex = index - 1;
     }
-    
+
     final bool isSelected = _currentIndex == pageIndex;
 
     return GestureDetector(
@@ -285,7 +304,8 @@ class _BottomBarState extends State<BottomBar> {
         width: 60,
         padding: const EdgeInsets.symmetric(vertical: 6),
         decoration: BoxDecoration(
-          color: isSelected ? kPrimaryColor.withOpacity(0.1) : Colors.transparent,
+          color:
+              isSelected ? kPrimaryColor.withOpacity(0.1) : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
         ),
         child: Column(
@@ -325,10 +345,7 @@ class _BottomBarState extends State<BottomBar> {
             const SizedBox(height: 28),
             Text(
               label,
-              style: const TextStyle(
-                fontSize: 12,
-                color: Colors.grey,
-              ),
+              style: const TextStyle(fontSize: 12, color: Colors.grey),
             ),
           ],
         ),

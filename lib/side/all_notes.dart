@@ -115,6 +115,9 @@ class _FoldersPageState extends State<FoldersPage> {
   final _searchController = TextEditingController();
   final _searchFocusNode = FocusNode();
 
+  // Calculate how many level deep is the folder
+  late final int _initialFolderDepth = widget.initialFolder != null ? 1 : 0;
+
   // Full, unfiltered data sets - loaded once, then filtered client-side for
   // both normal folder browsing and global search.
   List<Map<String, dynamic>> _folders = [];
@@ -130,6 +133,7 @@ class _FoldersPageState extends State<FoldersPage> {
   final List<Map<String, dynamic>> _folderPath = []; // breadcrumb trail
 
   final Set<String> _selectedNoteIds = {};
+  final Set<String> _selectedFolderIds = {};
   bool _selectionMode = false;
   bool _isSearchBarVisible = false;
   String _sortBy = 'Last Edited (Recent)';
@@ -214,93 +218,99 @@ class _FoldersPageState extends State<FoldersPage> {
       // Non-critical - stars just won't reflect correctly until next load.
     }
   }
-  void _showNoteOptionsMenu(Map<String, dynamic> note) {
-  final noteId = note['id'] as String;
-  final isOwned = note['is_owned'] == true;
-  final isFavorite = _favoriteNoteIds.contains(noteId);
 
-  showModalBottomSheet(
-    context: context,
-    backgroundColor: kCardColor,
-    useSafeArea: true,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-    ),
-    builder: (context) {
-      return SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 8),
-            _buildBottomSheetAction(
-              icon: Icons.star_border,
-              label: isFavorite ? 'Remove from starred' : 'Add to starred',
-              onTap: () async {
-                Navigator.pop(context);
-                final user = _supabase.auth.currentUser;
-                if (user == null) return;
-                try {
-                  if (isFavorite) {
-                    await _supabase
-                        .from('favorites')
-                        .delete()
-                        .eq('user_id', user.id)
-                        .eq('note_id', noteId);
-                  } else {
-                    await _supabase.from('favorites').upsert(
-                      {'user_id': user.id, 'note_id': noteId},
-                      onConflict: 'user_id,note_id',
+  void _showNoteOptionsMenu(Map<String, dynamic> note) {
+    final noteId = note['id'] as String;
+    final isOwned = note['is_owned'] == true;
+    final isFavorite = _favoriteNoteIds.contains(noteId);
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: kCardColor,
+      useSafeArea: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 8),
+              _buildBottomSheetAction(
+                icon: Icons.star_border,
+                label: isFavorite ? 'Remove from starred' : 'Add to starred',
+                onTap: () async {
+                  Navigator.pop(context);
+                  final user = _supabase.auth.currentUser;
+                  if (user == null) return;
+                  try {
+                    if (isFavorite) {
+                      await _supabase
+                          .from('favorites')
+                          .delete()
+                          .eq('user_id', user.id)
+                          .eq('note_id', noteId);
+                    } else {
+                      await _supabase.from('favorites').upsert({
+                        'user_id': user.id,
+                        'note_id': noteId,
+                      }, onConflict: 'user_id,note_id');
+                    }
+                    await _loadFavorites();
+                  } catch (e) {
+                    if (!mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Failed to update starred: $e')),
                     );
                   }
-                  await _loadFavorites();
-                } catch (e) {
-                  if (!mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Failed to update starred: $e')),
-                  );
-                }
-              },
-            ),
-            _buildBottomSheetAction(
-              icon: Icons.folder_open_outlined,
-              label: 'Move to folder',
-              onTap: () {
-                Navigator.pop(context);
-                // Reuse the existing move sheet by targeting just this
-                // note, without ever flipping on selection mode.
-                setState(() => _selectedNoteIds
-                  ..clear()
-                  ..add(noteId));
-                _showMoveToFolderSheet().then((_) => _selectedNoteIds.clear());
-              },
-            ),
-            if (isOwned)
-              _buildBottomSheetAction(
-                icon: Icons.delete_outline,
-                label: 'Delete',
-                isDestructive: true,
-                onTap: () {
-                  Navigator.pop(context);
-                  _deleteNote(noteId);
-                },
-              )
-            else
-              _buildBottomSheetAction(
-                icon: Icons.remove_circle_outline,
-                label: 'Unsave',
-                isDestructive: true,
-                onTap: () {
-                  Navigator.pop(context);
-                  _unsaveNote(noteId);
                 },
               ),
-            const SizedBox(height: 12),
-          ],
-        ),
-      );
-    },
-  );
-}
+              _buildBottomSheetAction(
+                icon: Icons.folder_open_outlined,
+                label: 'Move to folder',
+                onTap: () {
+                  Navigator.pop(context);
+                  // Reuse the existing move sheet by targeting just this
+                  // note, without ever flipping on selection mode.
+                  setState(
+                    () =>
+                        _selectedNoteIds
+                          ..clear()
+                          ..add(noteId),
+                  );
+                  _showMoveToFolderSheet().then(
+                    (_) => _selectedNoteIds.clear(),
+                  );
+                },
+              ),
+              if (isOwned)
+                _buildBottomSheetAction(
+                  icon: Icons.delete_outline,
+                  label: 'Delete',
+                  isDestructive: true,
+                  onTap: () {
+                    Navigator.pop(context);
+                    _deleteNote(noteId);
+                  },
+                )
+              else
+                _buildBottomSheetAction(
+                  icon: Icons.remove_circle_outline,
+                  label: 'Unsave',
+                  isDestructive: true,
+                  onTap: () {
+                    Navigator.pop(context);
+                    _unsaveNote(noteId);
+                  },
+                ),
+              const SizedBox(height: 12),
+            ],
+          ),
+        );
+      },
+    );
+  }
 
   Future<void> _loadOwnedNotes() async {
     setState(() => _isLoadingOwnedNotes = true);
@@ -594,6 +604,9 @@ class _FoldersPageState extends State<FoldersPage> {
     return _selectedNoteIds.where(communityIds.contains).toSet();
   }
 
+  int get _totalSelectedCount =>
+      _selectedNoteIds.length + _selectedFolderIds.length;
+
   // ---------------------------------------------------------------------
   // NAVIGATION
   // ---------------------------------------------------------------------
@@ -654,7 +667,7 @@ class _FoldersPageState extends State<FoldersPage> {
       setState(() => _isSearchBarVisible = false);
       return false;
     }
-    if (_folderPath.isNotEmpty) {
+    if (_folderPath.length > _initialFolderDepth) {
       _navigateToBreadcrumb(_folderPath.length - 2);
       return false; // handled internally, don't pop the whole page
     }
@@ -1014,7 +1027,10 @@ class _FoldersPageState extends State<FoldersPage> {
     if (value) FocusScope.of(context).unfocus();
     setState(() {
       _selectionMode = value;
-      if (!value) _selectedNoteIds.clear();
+      if (!value) {
+        _selectedNoteIds.clear();
+        _selectedFolderIds.clear();
+      }
     });
   }
 
@@ -1028,13 +1044,34 @@ class _FoldersPageState extends State<FoldersPage> {
       setState(() {
         if (_selectedNoteIds.contains(noteId)) {
           _selectedNoteIds.remove(noteId);
-          if (_selectedNoteIds.isEmpty) _setSelectionMode(false);
+          if (_totalSelectedCount == 0) _setSelectionMode(false);
         } else {
           _selectedNoteIds.add(noteId);
         }
       });
     } else {
       openNote();
+    }
+  }
+
+  void _onLongPressFolder(String folderId) {
+    if (!_selectionMode) _setSelectionMode(true);
+    setState(() => _selectedFolderIds.add(folderId));
+  }
+
+  void _onTapFolder(Map<String, dynamic> folder) {
+    final folderId = folder['id'] as String;
+    if (_selectionMode) {
+      setState(() {
+        if (_selectedFolderIds.contains(folderId)) {
+          _selectedFolderIds.remove(folderId);
+          if (_totalSelectedCount == 0) _setSelectionMode(false);
+        } else {
+          _selectedFolderIds.add(folderId);
+        }
+      });
+    } else {
+      _openFolder(folder);
     }
   }
 
@@ -1109,43 +1146,73 @@ class _FoldersPageState extends State<FoldersPage> {
   Future<void> _deleteSelectedNotes() async {
     final user = _supabase.auth.currentUser;
     final ownedIds = _selectedOwnedIds;
-    if (user == null || ownedIds.isEmpty) return;
+    final folderIds = _selectedFolderIds.toList();
+
+    if (user == null) return;
 
     try {
-      await _supabase
-          .from('notes')
-          .update({
-            'deleted_at': DateTime.now().toUtc().toIso8601String(),
-            'delete_expires_at':
-                DateTime.now()
-                    .toUtc()
-                    .add(const Duration(days: 10))
-                    .toIso8601String(),
-          })
-          .eq('user_id', user.id)
-          .inFilter('id', ownedIds.toList());
+      if (ownedIds.isNotEmpty) {
+        await _supabase
+            .from('notes')
+            .update({
+              'deleted_at': DateTime.now().toUtc().toIso8601String(),
+              'delete_expires_at':
+                  DateTime.now()
+                      .toUtc()
+                      .add(const Duration(days: 10))
+                      .toIso8601String(),
+            })
+            .eq('user_id', user.id)
+            .inFilter('id', ownedIds.toList());
+      }
+
+      // Folders are deleted outright (not soft-deleted like notes);
+      // contained notes are unfiled server-side, matching single-folder
+      // delete behavior.
+      for (final folderId in folderIds) {
+        await _supabase
+            .from('folders')
+            .delete()
+            .eq('id', folderId)
+            .eq('user_id', user.id);
+      }
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            '${ownedIds.length} note${ownedIds.length > 1 ? 's' : ''} moved to trash (10 days)',
-          ),
-        ),
-      );
+      final parts = <String>[];
+      if (ownedIds.isNotEmpty) {
+        parts.add(
+          '${ownedIds.length} note${ownedIds.length > 1 ? 's' : ''} moved to trash (10 days)',
+        );
+      }
+      if (folderIds.isNotEmpty) {
+        parts.add(
+          '${folderIds.length} folder${folderIds.length > 1 ? 's' : ''} deleted',
+        );
+      }
+      if (parts.isNotEmpty) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(parts.join(', '))));
+      }
       _clearSelection();
       _loadOwnedNotes();
+      if (folderIds.isNotEmpty) {
+        _loadFolders();
+        _loadCommunityNotes();
+      }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Failed to delete notes: $e')));
+      ).showSnackBar(SnackBar(content: Text('Failed to delete: $e')));
     }
   }
 
   void _confirmBatchDelete() {
     final ownedCount = _selectedOwnedIds.length;
-    if (ownedCount == 0) {
+    final folderCount = _selectedFolderIds.length;
+
+    if (ownedCount == 0 && folderCount == 0) {
       // Selection is entirely saved community notes - nothing to delete.
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -1158,19 +1225,31 @@ class _FoldersPageState extends State<FoldersPage> {
     }
 
     final hasCommunityToo = _selectedCommunityIds.isNotEmpty;
+
+    final messageParts = <String>[];
+    if (ownedCount > 0) {
+      messageParts.add(
+        '$ownedCount note${ownedCount > 1 ? 's' : ''} (deleted permanently after 10 days)',
+      );
+    }
+    if (folderCount > 0) {
+      messageParts.add(
+        '$folderCount folder${folderCount > 1 ? 's' : ''} (subfolders deleted too, contained notes unfiled)',
+      );
+    }
+
     showDialog(
       context: context,
       builder:
           (context) => AlertDialog(
             backgroundColor: kCardColor,
             title: const Text(
-              'Delete notes',
+              'Delete selected items',
               style: TextStyle(color: Colors.white),
             ),
             content: Text(
-              hasCommunityToo
-                  ? 'Delete $ownedCount of your notes? They\'ll be deleted permanently after 10 days. Saved community notes in your selection won\'t be affected.'
-                  : 'Delete $ownedCount selected notes? These notes will be deleted permanently after 10 days.',
+              'Delete ${messageParts.join(' and ')}?'
+              '${hasCommunityToo ? " Saved community notes in your selection won't be affected." : ""}',
               style: const TextStyle(color: Colors.grey),
             ),
             actions: [
@@ -1197,7 +1276,8 @@ class _FoldersPageState extends State<FoldersPage> {
   }
 
   // Starring works the same for owned and community notes - favorites are
-  // keyed by note_id regardless of who owns the underlying note.
+  // keyed by note_id regardless of who owns the underlying note. Folders
+  // aren't starrable, so this only ever touches _selectedNoteIds.
   Future<void> _addSelectedToStarred() async {
     final user = _supabase.auth.currentUser;
     if (user == null || _selectedNoteIds.isEmpty) return;
@@ -1254,17 +1334,20 @@ class _FoldersPageState extends State<FoldersPage> {
     }
   }
 
-  // Moving can include both owned and community notes in one selection, so
-  // this splits the ids and updates each table's folder_id separately:
-  // owned notes live in `notes.folder_id`, saved community notes get a
-  // per-user folder_id on `saved_notes` (the underlying note is never
-  // touched).
+  // Moving can include owned notes, community notes, and now folders in
+  // one selection. Splits the ids and updates each table's parent/folder
+  // reference separately: owned notes live in `notes.folder_id`, saved
+  // community notes get a per-user folder_id on `saved_notes`, and folders
+  // are reparented via `folders.parent_id`.
   Future<void> _moveSelectedToFolder(String? folderId) async {
     final user = _supabase.auth.currentUser;
-    if (user == null || _selectedNoteIds.isEmpty) return;
+    if (user == null) return;
+    if (_selectedNoteIds.isEmpty && _selectedFolderIds.isEmpty) return;
 
     final ownedIds = _selectedOwnedIds.toList();
     final communityIds = _selectedCommunityIds.toList();
+    // Guard against moving a folder into itself.
+    final folderIds = _selectedFolderIds.where((id) => id != folderId).toList();
 
     try {
       if (ownedIds.isNotEmpty) {
@@ -1281,23 +1364,34 @@ class _FoldersPageState extends State<FoldersPage> {
             .eq('user_id', user.id)
             .inFilter('note_id', communityIds);
       }
+      if (folderIds.isNotEmpty) {
+        await _supabase
+            .from('folders')
+            .update({'parent_id': folderId})
+            .eq('user_id', user.id)
+            .inFilter('id', folderIds);
+      }
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${_selectedNoteIds.length} note(s) moved')),
+        SnackBar(content: Text('${_totalSelectedCount} item(s) moved')),
       );
       _clearSelection();
-      await Future.wait([_loadOwnedNotes(), _loadCommunityNotes()]);
+      await Future.wait([
+        _loadOwnedNotes(),
+        _loadCommunityNotes(),
+        _loadFolders(),
+      ]);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Failed to move notes: $e')));
+      ).showSnackBar(SnackBar(content: Text('Failed to move items: $e')));
     }
   }
 
   Future<void> _showMoveToFolderSheet() async {
-    if (_selectedNoteIds.isEmpty) return;
+    if (_selectedNoteIds.isEmpty && _selectedFolderIds.isEmpty) return;
 
     String?
     pickerFolderId; // current folder shown inside picker (starts at root)
@@ -1305,7 +1399,15 @@ class _FoldersPageState extends State<FoldersPage> {
 
     List<Map<String, dynamic>> childrenOf(String? parentId) {
       final children =
-          _folders.where((f) => f['parent_id'] == parentId).toList();
+          _folders
+              // Don't let a folder be navigated into itself while picking
+              // a destination for a move that includes it.
+              .where(
+                (f) =>
+                    f['parent_id'] == parentId &&
+                    !_selectedFolderIds.contains(f['id']),
+              )
+              .toList();
       children.sort(
         (a, b) => (a['name'] ?? '').toString().compareTo(
           (b['name'] ?? '').toString(),
@@ -1470,6 +1572,9 @@ class _FoldersPageState extends State<FoldersPage> {
   void _showSelectionActionsBottomSheet() {
     final allStarred = _areAllSelectedStarred();
     final hasOwnedSelected = _selectedOwnedIds.isNotEmpty;
+    final hasFoldersSelected = _selectedFolderIds.isNotEmpty;
+    final canDelete = hasOwnedSelected || hasFoldersSelected;
+    final hasNoteSelection = _selectedNoteIds.isNotEmpty;
     showModalBottomSheet(
       context: context,
       backgroundColor: kCardColor,
@@ -1485,7 +1590,7 @@ class _FoldersPageState extends State<FoldersPage> {
               const SizedBox(height: 8),
               const SizedBox(height: 12),
               Text(
-                '${_selectedNoteIds.length} Selected',
+                '${_totalSelectedCount} Selected',
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 16,
@@ -1494,16 +1599,18 @@ class _FoldersPageState extends State<FoldersPage> {
               ),
               const SizedBox(height: 12),
               const Divider(),
-              _buildBottomSheetAction(
-                icon: Icons.star_border,
-                label: allStarred ? 'Remove from starred' : 'Add to starred',
-                onTap: () {
-                  Navigator.pop(context);
-                  allStarred
-                      ? _removeSelectedFromStarred()
-                      : _addSelectedToStarred();
-                },
-              ),
+              // Starring only applies to notes, not folders.
+              if (hasNoteSelection)
+                _buildBottomSheetAction(
+                  icon: Icons.star_border,
+                  label: allStarred ? 'Remove from starred' : 'Add to starred',
+                  onTap: () {
+                    Navigator.pop(context);
+                    allStarred
+                        ? _removeSelectedFromStarred()
+                        : _addSelectedToStarred();
+                  },
+                ),
               _buildBottomSheetAction(
                 icon: Icons.folder_open_outlined,
                 label: 'Move to folder',
@@ -1513,9 +1620,9 @@ class _FoldersPageState extends State<FoldersPage> {
                 },
               ),
               // Delete only shown/enabled when the selection actually
-              // includes at least one owned note - saved community notes
-              // can't be deleted from here.
-              if (hasOwnedSelected) ...[
+              // includes at least one owned note or folder - saved
+              // community notes can't be deleted from here.
+              if (canDelete) ...[
                 const Divider(),
                 _buildBottomSheetAction(
                   icon: Icons.delete_outline,
@@ -1543,6 +1650,8 @@ class _FoldersPageState extends State<FoldersPage> {
   PreferredSizeWidget _buildAppBar() {
     if (_selectionMode) {
       final hasOwnedSelected = _selectedOwnedIds.isNotEmpty;
+      final hasFoldersSelected = _selectedFolderIds.isNotEmpty;
+      final canDelete = hasOwnedSelected || hasFoldersSelected;
       return AppBar(
         key: const ValueKey('selection_appbar'),
         backgroundColor: kCardColor,
@@ -1553,7 +1662,7 @@ class _FoldersPageState extends State<FoldersPage> {
           onPressed: _clearSelection,
         ),
         title: Text(
-          '${_selectedNoteIds.length} Selected',
+          '${_totalSelectedCount} Selected',
           style: const TextStyle(
             color: Colors.white,
             fontSize: 18,
@@ -1567,13 +1676,13 @@ class _FoldersPageState extends State<FoldersPage> {
             splashRadius: 20,
             onPressed: _showMoveToFolderSheet,
           ),
-          // Delete icon is dimmed/disabled when nothing owned is selected
-          // (e.g. only saved community notes are selected).
+          // Delete icon is dimmed/disabled when nothing owned/foldered is
+          // selected (e.g. only saved community notes are selected).
           IconButton(
             icon: const Icon(Icons.delete_outline),
-            color: hasOwnedSelected ? Colors.white : Colors.white24,
+            color: canDelete ? Colors.white : Colors.white24,
             splashRadius: 20,
-            onPressed: hasOwnedSelected ? _confirmBatchDelete : null,
+            onPressed: canDelete ? _confirmBatchDelete : null,
           ),
           IconButton(
             icon: const Icon(Icons.select_all),
@@ -1584,6 +1693,9 @@ class _FoldersPageState extends State<FoldersPage> {
                 _selectedNoteIds
                   ..clear()
                   ..addAll(_visibleNotes.map((n) => n['id'] as String));
+                _selectedFolderIds
+                  ..clear()
+                  ..addAll(_visibleFolders.map((f) => f['id'] as String));
               });
             },
           ),
@@ -1659,34 +1771,18 @@ class _FoldersPageState extends State<FoldersPage> {
     );
   }
 
-  // ---------------------------------------------------------------------
-  // BREADCRUMB
-  // ---------------------------------------------------------------------
-
   Widget _buildBreadcrumb() {
     if (_folderPath.isEmpty) return const SizedBox.shrink();
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: Row(
         children: [
-          GestureDetector(
-            onTap: () => _navigateToBreadcrumb(-1),
-            child: Row(
-              children: const [
-                Icon(Icons.home_outlined, size: 15, color: kPrimaryColor),
-                SizedBox(width: 4),
-                Text(
-                  'Home',
-                  style: TextStyle(color: kPrimaryColor, fontSize: 14),
-                ),
-              ],
-            ),
-          ),
           for (int i = 0; i < _folderPath.length; i++) ...[
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 6),
-              child: Icon(Icons.chevron_right, color: Colors.grey, size: 16),
-            ),
+            if (i != 0)
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 6),
+                child: Icon(Icons.chevron_right, color: Colors.grey, size: 16),
+              ),
             GestureDetector(
               onTap: () => _navigateToBreadcrumb(i),
               child: Text(
@@ -1737,7 +1833,7 @@ class _FoldersPageState extends State<FoldersPage> {
         ),
         IconButton(
           icon: Icon(
-            _isGridView ? Icons.grid_view : Icons.list,
+            _isGridView ? Icons.list : Icons.grid_view,
             color: Colors.white70,
           ),
           splashRadius: 20,
@@ -1802,29 +1898,47 @@ class _FoldersPageState extends State<FoldersPage> {
   // ---------------------------------------------------------------------
 
   Widget _buildFolderTile(Map<String, dynamic> folder) {
+    final folderId = folder['id'] as String;
+    final isSelected = _selectedFolderIds.contains(folderId);
     return GestureDetector(
       key: ValueKey('folder_${folder['id']}'),
-      onTap: () => _openFolder(folder),
-      onLongPress: () => _showFolderOptionsMenu(folder),
+      onTap: () => _onTapFolder(folder),
+      onLongPress: () => _onLongPressFolder(folderId),
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: kCardColor,
+          color: isSelected ? kPrimaryColor.withOpacity(0.18) : kCardColor,
           borderRadius: BorderRadius.circular(12),
+          border:
+              isSelected
+                  ? Border.all(color: kPrimaryColor, width: 2)
+                  : Border.all(color: Colors.transparent),
         ),
         child: Row(
           children: [
-            Container(
-              width: 40,
-              height: 40,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: const Color(0xFF3C3C3E),
-                borderRadius: BorderRadius.circular(8),
+            if (isSelected)
+              Container(
+                width: 40,
+                height: 40,
+                alignment: Alignment.center,
+                child: const Icon(
+                  Icons.check_circle,
+                  color: kPrimaryColor,
+                  size: 32,
+                ),
+              )
+            else
+              Container(
+                width: 40,
+                height: 40,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF3C3C3E),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.folder, color: kAccentYellow, size: 20),
               ),
-              child: const Icon(Icons.folder, color: kAccentYellow, size: 20),
-            ),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
@@ -1838,11 +1952,12 @@ class _FoldersPageState extends State<FoldersPage> {
                 ),
               ),
             ),
-            IconButton(
-              icon: const Icon(Icons.more_vert, color: Colors.grey, size: 22),
-              splashRadius: 20,
-              onPressed: () => _showFolderOptionsMenu(folder),
-            ),
+            if (!_selectionMode)
+              IconButton(
+                icon: const Icon(Icons.more_vert, color: Colors.grey, size: 22),
+                splashRadius: 20,
+                onPressed: () => _showFolderOptionsMenu(folder),
+              ),
           ],
         ),
       ),
@@ -1918,75 +2033,113 @@ class _FoldersPageState extends State<FoldersPage> {
   }
 
   Widget _buildFolderGridTile(Map<String, dynamic> folder) {
-  return GestureDetector(
-    key: ValueKey('grid_folder_${folder['id']}'),
-    onTap: () => _openFolder(folder),
-    onLongPress: () => _showFolderOptionsMenu(folder),
-    child: Container(
-      decoration: BoxDecoration(
-        color: kCardColor,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 12, 6, 4),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 30,
-                  height: 30,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF3C3C3E),
-                    borderRadius: BorderRadius.circular(7),
-                  ),
-                  child: const Icon(
-                    Icons.folder,
-                    color: kAccentYellow,
-                    size: 16,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    folder['name'] ?? 'Untitled folder',
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      height: 1.2,
+    final folderId = folder['id'] as String;
+    final isSelected = _selectedFolderIds.contains(folderId);
+    return GestureDetector(
+      key: ValueKey('grid_folder_${folder['id']}'),
+      onTap: () => _onTapFolder(folder),
+      onLongPress: () => _onLongPressFolder(folderId),
+      child: Container(
+        decoration: BoxDecoration(
+          color: isSelected ? kPrimaryColor.withOpacity(0.18) : kCardColor,
+          borderRadius: BorderRadius.circular(12),
+          border:
+              isSelected
+                  ? Border.all(color: kPrimaryColor, width: 2)
+                  : Border.all(color: Colors.transparent),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 12, 6, 4),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (isSelected)
+                    Container(
+                      width: 30,
+                      height: 30,
+                      alignment: Alignment.center,
+                      decoration: const BoxDecoration(
+                        color: kPrimaryColor,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.check,
+                        color: Colors.white,
+                        size: 16,
+                      ),
+                    )
+                  else if (_selectionMode)
+                    Container(
+                      width: 30,
+                      height: 30,
+                      alignment: Alignment.center,
+                      child: const Icon(
+                        Icons.radio_button_unchecked,
+                        color: Colors.grey,
+                        size: 18,
+                      ),
+                    )
+                  else
+                    Container(
+                      width: 30,
+                      height: 30,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF3C3C3E),
+                        borderRadius: BorderRadius.circular(7),
+                      ),
+                      child: const Icon(
+                        Icons.folder,
+                        color: kAccentYellow,
+                        size: 16,
+                      ),
+                    ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      folder['name'] ?? 'Untitled folder',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        height: 1.2,
+                      ),
                     ),
                   ),
-                ),
-                InkWell(
-                  borderRadius: BorderRadius.circular(20),
-                  onTap: () => _showFolderOptionsMenu(folder),
-                  child: const Padding(
-                    padding: EdgeInsets.all(4),
-                    child: Icon(Icons.more_vert, color: Colors.grey, size: 18),
-                  ),
-                ),
-              ],
+                  if (!_selectionMode)
+                    InkWell(
+                      borderRadius: BorderRadius.circular(20),
+                      onTap: () => _showFolderOptionsMenu(folder),
+                      child: const Padding(
+                        padding: EdgeInsets.all(4),
+                        child: Icon(
+                          Icons.more_vert,
+                          color: Colors.grey,
+                          size: 18,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ),
-          ),
-          // Big folder glyph filling the remaining space, like the
-          // reference: pale/silver folder icon centered under the header.
-          const Expanded(
-            child: Center(
-              child: Icon(Icons.folder, color: Color(0xFFC7C7CC), size: 132),
+            // Big folder glyph filling the remaining space, like the
+            // reference: pale/silver folder icon centered under the header.
+            const Expanded(
+              child: Center(
+                child: Icon(Icons.folder, color: Color(0xFFC7C7CC), size: 132),
+              ),
             ),
-          ),
-          const SizedBox(height: 8),
-        ],
+            const SizedBox(height: 8),
+          ],
+        ),
       ),
-    ),
-  );
-}
+    );
+  }
 
   IconData _noteGridIcon(Map<String, dynamic> note) {
     final type = (note['file_type'] ?? '').toString().toLowerCase();
@@ -2003,139 +2156,143 @@ class _FoldersPageState extends State<FoldersPage> {
   }
 
   Widget _buildNoteGridTile(Map<String, dynamic> note) {
-  final noteId = note['id'] as String;
-  final isOwned = note['is_owned'] == true;
-  final isSelected = _selectedNoteIds.contains(noteId);
-  final fileType = (note['file_type'] ?? '').toString();
-  final openNote = () {
-    FileOpener.openFile(
-      context,
-      note['file_url'],
-      '${note['title']}.${note['file_type']}',
-    );
-  };
+    final noteId = note['id'] as String;
+    final isOwned = note['is_owned'] == true;
+    final isSelected = _selectedNoteIds.contains(noteId);
+    final fileType = (note['file_type'] ?? '').toString();
+    final openNote = () {
+      FileOpener.openFile(
+        context,
+        note['file_url'],
+        '${note['title']}.${note['file_type']}',
+      );
+    };
 
-  return GestureDetector(
-    key: ValueKey('grid_note_$noteId'),
-    onLongPress: () => _onLongPressNote(noteId),
-    onTap: () => _onTapNote(noteId, openNote),
-    child: Container(
-      decoration: BoxDecoration(
-        color: kCardColor,
-        borderRadius: BorderRadius.circular(12),
-        border:
-            isSelected
-                ? Border.all(color: kPrimaryColor, width: 2)
-                : Border.all(color: Colors.transparent),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header: file-type icon, title (up to 2 lines), then either a
-          // selection indicator (in selection mode) or a per-note kebab
-          // menu that opens the same actions sheet used for batch
-          // selection - it just pre-selects this one note first.
-          Padding(
-            padding: const EdgeInsets.fromLTRB(10, 10, 4, 6),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 30,
-                  height: 30,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: _noteGridIconColor(note).withOpacity(0.18),
-                    borderRadius: BorderRadius.circular(7),
-                  ),
-                  child: Icon(
-                    _noteGridIcon(note),
-                    color: _noteGridIconColor(note),
-                    size: 16,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    note['title'] ?? 'Untitled',
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 13.5,
-                      fontWeight: FontWeight.w600,
-                      height: 1.2,
+    return GestureDetector(
+      key: ValueKey('grid_note_$noteId'),
+      onLongPress: () => _onLongPressNote(noteId),
+      onTap: () => _onTapNote(noteId, openNote),
+      child: Container(
+        decoration: BoxDecoration(
+          color: kCardColor,
+          borderRadius: BorderRadius.circular(12),
+          border:
+              isSelected
+                  ? Border.all(color: kPrimaryColor, width: 2)
+                  : Border.all(color: Colors.transparent),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header: file-type icon, title (up to 2 lines), then either a
+            // selection indicator (in selection mode) or a per-note kebab
+            // menu that opens the same actions sheet used for batch
+            // selection - it just pre-selects this one note first.
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 10, 4, 6),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 30,
+                    height: 30,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: _noteGridIconColor(note).withOpacity(0.18),
+                      borderRadius: BorderRadius.circular(7),
                     ),
-                  ),
-                ),
-                if (_selectionMode)
-                  Padding(
-                    padding: const EdgeInsets.only(left: 4, top: 2),
                     child: Icon(
-                      isSelected
-                          ? Icons.check_circle
-                          : Icons.radio_button_unchecked,
-                      color: isSelected ? kPrimaryColor : Colors.grey,
-                      size: 20,
+                      _noteGridIcon(note),
+                      color: _noteGridIconColor(note),
+                      size: 16,
                     ),
-                  )
-                else
-                InkWell(
-                  borderRadius: BorderRadius.circular(20),
-                  onTap: () => _showNoteOptionsMenu(note),
-                  child: const Padding(
-                    padding: EdgeInsets.all(4),
-                    child: Icon(Icons.more_vert, color: Colors.grey, size: 18),
                   ),
-                ),
-              ],
-            ),
-          ),
-          // Big preview area, with a rounded corner and a small "shared"
-          // people-badge overlaid bottom-right for community/saved notes -
-          // owned notes get no badge, matching the reference screenshot.
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    Container(color: Colors.white.withOpacity(0.04)),
-                    _FolderNoteThumbnailWithCache(
-                      noteId: noteId,
-                      fileUrl: note['file_url'] ?? '',
-                      fileType: fileType,
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      note['title'] ?? 'Untitled',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w600,
+                        height: 1.2,
+                      ),
                     ),
-                    if (!isOwned)
-                      Positioned(
-                        right: 6,
-                        bottom: 6,
-                        child: Container(
-                          width: 26,
-                          height: 26,
-                          decoration: const BoxDecoration(
-                            color: Colors.white,
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.people_alt,
-                            size: 14,
-                            color: Colors.black87,
-                          ),
+                  ),
+                  if (_selectionMode)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 4, top: 2),
+                      child: Icon(
+                        isSelected
+                            ? Icons.check_circle
+                            : Icons.radio_button_unchecked,
+                        color: isSelected ? kPrimaryColor : Colors.grey,
+                        size: 20,
+                      ),
+                    )
+                  else
+                    InkWell(
+                      borderRadius: BorderRadius.circular(20),
+                      onTap: () => _showNoteOptionsMenu(note),
+                      child: const Padding(
+                        padding: EdgeInsets.all(4),
+                        child: Icon(
+                          Icons.more_vert,
+                          color: Colors.grey,
+                          size: 18,
                         ),
                       ),
-                  ],
+                    ),
+                ],
+              ),
+            ),
+            // Big preview area, with a rounded corner and a small "shared"
+            // people-badge overlaid bottom-right for community/saved notes -
+            // owned notes get no badge, matching the reference screenshot.
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      Container(color: Colors.white.withOpacity(0.04)),
+                      _FolderNoteThumbnailWithCache(
+                        noteId: noteId,
+                        fileUrl: note['file_url'] ?? '',
+                        fileType: fileType,
+                      ),
+                      if (!isOwned)
+                        Positioned(
+                          right: 6,
+                          bottom: 6,
+                          child: Container(
+                            width: 26,
+                            height: 26,
+                            decoration: const BoxDecoration(
+                              color: Colors.white,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.people_alt,
+                              size: 14,
+                              color: Colors.black87,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
-    ),
-  );
-}
+    );
+  }
 
   Widget _buildEmptyState() {
     if (_isSearching) {
@@ -2242,7 +2399,7 @@ class _FoldersPageState extends State<FoldersPage> {
   Widget build(BuildContext context) {
     return PopScope(
       canPop:
-          _folderPath.isEmpty &&
+          _folderPath.length <= _initialFolderDepth &&
           !_selectionMode &&
           !_isSearching &&
           !_isSearchBarVisible,
@@ -2298,10 +2455,8 @@ class _FoldersPageState extends State<FoldersPage> {
                       _buildBreadcrumb(),
                       const SizedBox(height: 12),
                     ],
-                    if (!_selectionMode) ...[
-                      _buildSortAndViewControls(),
-                      const SizedBox(height: 12),
-                    ],
+                    _buildSortAndViewControls(),
+                    const SizedBox(height: 12),
                     _buildContentList(),
                     const SizedBox(height: 100),
                   ],

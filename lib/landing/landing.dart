@@ -147,10 +147,7 @@ class _LandingPageState extends State<LandingPage> {
                         itemBuilder: (context, index) {
                           return Column(
                             children: [
-                              Expanded(
-                                flex: 3,
-                                child: _illustrations[index],
-                              ),
+                              Expanded(flex: 3, child: _illustrations[index]),
                               const SizedBox(height: 12),
                               Expanded(
                                 flex: 1,
@@ -159,7 +156,10 @@ class _LandingPageState extends State<LandingPage> {
                                     textAlign: TextAlign.center,
                                     text: TextSpan(
                                       style: TextStyle(
-                                        fontSize: descriptionFontSize.clamp(12.0, 15.0),
+                                        fontSize: descriptionFontSize.clamp(
+                                          12.0,
+                                          15.0,
+                                        ),
                                         color: Colors.white,
                                         height: 1.5,
                                       ),
@@ -179,7 +179,9 @@ class _LandingPageState extends State<LandingPage> {
                                         ),
                                         TextSpan(
                                           text: _pages[index].description,
-                                          style: TextStyle(color: Colors.grey[400]),
+                                          style: TextStyle(
+                                            color: Colors.grey[400],
+                                          ),
                                         ),
                                       ],
                                     ),
@@ -201,15 +203,17 @@ class _LandingPageState extends State<LandingPage> {
                         _pages.length,
                         (index) => AnimatedContainer(
                           duration: const Duration(milliseconds: 250),
-                          width: _currentPage == index
-                              ? (screenWidth * 0.05).clamp(18.0, 24.0)
-                              : (screenWidth * 0.02).clamp(6.0, 8.0),
+                          width:
+                              _currentPage == index
+                                  ? (screenWidth * 0.05).clamp(18.0, 24.0)
+                                  : (screenWidth * 0.02).clamp(6.0, 8.0),
                           height: (screenWidth * 0.02).clamp(6.0, 8.0),
                           margin: const EdgeInsets.symmetric(horizontal: 4),
                           decoration: BoxDecoration(
-                            color: _currentPage == index
-                                ? kPrimaryColor
-                                : Colors.grey[600],
+                            color:
+                                _currentPage == index
+                                    ? kPrimaryColor
+                                    : Colors.grey[600],
                             borderRadius: BorderRadius.circular(4),
                           ),
                         ),
@@ -258,7 +262,8 @@ class _LandingPageState extends State<LandingPage> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                            builder: (context) => const LoginPage()),
+                          builder: (context) => const LoginPage(),
+                        ),
                       );
                     },
                     style: ElevatedButton.styleFrom(
@@ -288,7 +293,8 @@ class _LandingPageState extends State<LandingPage> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                            builder: (context) => const SignUpPage()),
+                          builder: (context) => const SignUpPage(),
+                        ),
                       );
                     },
                     style: OutlinedButton.styleFrom(
@@ -366,20 +372,22 @@ class OnboardingContent {
 // -------------------------------------------------------------
 List<Widget> _fakeLines(List<double> widths, Color color, {double height = 7}) {
   return widths
-      .map((w) => Padding(
-            padding: const EdgeInsets.only(bottom: 6),
-            child: FractionallySizedBox(
-              widthFactor: w,
-              alignment: Alignment.centerLeft,
-              child: Container(
-                height: height,
-                decoration: BoxDecoration(
-                  color: color,
-                  borderRadius: BorderRadius.circular(4),
-                ),
+      .map(
+        (w) => Padding(
+          padding: const EdgeInsets.only(bottom: 6),
+          child: FractionallySizedBox(
+            widthFactor: w,
+            alignment: Alignment.centerLeft,
+            child: Container(
+              height: height,
+              decoration: BoxDecoration(
+                color: color,
+                borderRadius: BorderRadius.circular(4),
               ),
             ),
-          ))
+          ),
+        ),
+      )
       .toList();
 }
 
@@ -392,11 +400,7 @@ Widget _pill(String label, Color bg, Color fg) {
     ),
     child: Text(
       label,
-      style: TextStyle(
-        color: fg,
-        fontSize: 10,
-        fontWeight: FontWeight.w600,
-      ),
+      style: TextStyle(color: fg, fontSize: 10, fontWeight: FontWeight.w600),
     ),
   );
 }
@@ -443,7 +447,9 @@ class _FilesIllustration extends StatelessWidget {
                         children: [
                           Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 6, vertical: 3),
+                              horizontal: 6,
+                              vertical: 3,
+                            ),
                             decoration: BoxDecoration(
                               color: Colors.redAccent.withOpacity(0.15),
                               borderRadius: BorderRadius.circular(6),
@@ -475,15 +481,15 @@ class _FilesIllustration extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 8),
-                      ..._fakeLines(
-                        [0.9, 0.75, 0.85, 0.6],
-                        Colors.grey[600]!,
-                      ),
+                      ..._fakeLines([0.9, 0.75, 0.85, 0.6], Colors.grey[600]!),
                       const SizedBox(height: 6),
                       Row(
                         children: [
-                          const Icon(Icons.lock_outline,
-                              color: kAccentYellow, size: 12),
+                          const Icon(
+                            Icons.lock_outline,
+                            color: kAccentYellow,
+                            size: 12,
+                          ),
                           const SizedBox(width: 4),
                           Text(
                             'Private',
@@ -549,7 +555,9 @@ class _FilesIllustration extends StatelessWidget {
                         children: [
                           Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 6, vertical: 3),
+                              horizontal: 6,
+                              vertical: 3,
+                            ),
                             decoration: BoxDecoration(
                               color: Colors.blueAccent.withOpacity(0.15),
                               borderRadius: BorderRadius.circular(6),
@@ -581,15 +589,15 @@ class _FilesIllustration extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 8),
-                      ..._fakeLines(
-                        [0.85, 0.65, 0.9, 0.7],
-                        Colors.grey[600]!,
-                      ),
+                      ..._fakeLines([0.85, 0.65, 0.9, 0.7], Colors.grey[600]!),
                       const SizedBox(height: 6),
                       Row(
                         children: [
-                          const Icon(Icons.public,
-                              color: Colors.greenAccent, size: 12),
+                          const Icon(
+                            Icons.public,
+                            color: Colors.greenAccent,
+                            size: 12,
+                          ),
                           const SizedBox(width: 4),
                           const Text(
                             'Public',
@@ -681,8 +689,11 @@ class _CaptureIllustration extends StatelessWidget {
                     children: [
                       Row(
                         children: [
-                          const Icon(Icons.edit_note,
-                              color: kPrimaryColor, size: 16),
+                          const Icon(
+                            Icons.edit_note,
+                            color: kPrimaryColor,
+                            size: 16,
+                          ),
                           const SizedBox(width: 8),
                           Container(
                             height: 9,
@@ -695,21 +706,27 @@ class _CaptureIllustration extends StatelessWidget {
                         ],
                       ),
                       const SizedBox(height: 10),
-                      ..._fakeLines(
-                        [0.9, 0.7, 0.8],
-                        Colors.grey[600]!,
-                      ),
+                      ..._fakeLines([0.9, 0.7, 0.8], Colors.grey[600]!),
                       const SizedBox(height: 10),
                       Wrap(
                         spacing: 5,
                         runSpacing: 5,
                         children: [
-                          _pill('Lecture',
-                              kPrimaryColor.withOpacity(0.2), kPrimaryColor),
-                          _pill('Week 3',
-                              kAccentYellow.withOpacity(0.15), kAccentYellow),
-                          _pill('CS101',
-                              Colors.teal.withOpacity(0.15), Colors.teal[300]!),
+                          _pill(
+                            'Lecture',
+                            kPrimaryColor.withOpacity(0.2),
+                            kPrimaryColor,
+                          ),
+                          _pill(
+                            'Week 3',
+                            kAccentYellow.withOpacity(0.15),
+                            kAccentYellow,
+                          ),
+                          _pill(
+                            'CS101',
+                            Colors.teal.withOpacity(0.15),
+                            Colors.teal[300]!,
+                          ),
                         ],
                       ),
                     ],
@@ -830,7 +847,9 @@ class _CommunityIllustration extends StatelessWidget {
                     const SizedBox(width: 6),
                     Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 5, vertical: 2),
+                        horizontal: 5,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: fileColor.withOpacity(0.12),
                         borderRadius: BorderRadius.circular(4),

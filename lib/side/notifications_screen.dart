@@ -180,9 +180,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         color: kCardColor,
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Column(
-        children: children,
-      ),
+      child: Column(children: children),
     );
   }
 
@@ -244,10 +242,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   Widget _buildDivider() {
     return Padding(
       padding: const EdgeInsets.only(left: 56), // Aligns with text after icon
-      child: Container(
-        height: 0.5,
-        color: Colors.white10,
-      ),
+      child: Container(height: 0.5, color: Colors.white10),
     );
   }
 }

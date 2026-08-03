@@ -15,10 +15,7 @@ const kAccentYellow = Color(0xFFFBBF24);
 
 class NotesPage extends StatefulWidget {
   final ValueChanged<bool>? onSelectionModeChanged;
-  const NotesPage({
-    super.key,
-    this.onSelectionModeChanged,
-  });
+  const NotesPage({super.key, this.onSelectionModeChanged});
 
   @override
   _NotesPageState createState() => _NotesPageState();
@@ -84,13 +81,13 @@ class _NotesPageState extends State<NotesPage> {
           .from('favorites')
           .select('note_id')
           .eq('user_id', user.id);
-      final favoriteNoteIds = (favoritesResponse as List)
-          .map((fav) => fav['note_id'] as String)
-          .toSet();
+      final favoriteNoteIds =
+          (favoritesResponse as List)
+              .map((fav) => fav['note_id'] as String)
+              .toSet();
 
-      final saved = (response as List)
-          .where((row) => row['notes'] != null)
-          .map((row) {
+      final saved =
+          (response as List).where((row) => row['notes'] != null).map((row) {
             final note = row['notes'];
             return {
               'id': note['id'],
@@ -107,8 +104,7 @@ class _NotesPageState extends State<NotesPage> {
               // folder_id on the saved_notes join row, not the underlying note
               'saved_folder_id': row['folder_id'],
             };
-          })
-          .toList();
+          }).toList();
 
       if (!mounted) return;
       setState(() {
@@ -119,9 +115,9 @@ class _NotesPageState extends State<NotesPage> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoadingSaved = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error loading saved notes: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error loading saved notes: $e')));
     }
   }
 
@@ -137,15 +133,15 @@ class _NotesPageState extends State<NotesPage> {
           .eq('note_id', noteId);
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Removed from saved notes')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Removed from saved notes')));
       await _loadSavedNotes();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to unsave note: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to unsave note: $e')));
     }
   }
 
@@ -175,29 +171,32 @@ class _NotesPageState extends State<NotesPage> {
           .from('favorites')
           .select('note_id')
           .eq('user_id', user.id);
-      final favoriteNoteIds = (favoritesResponse as List)
-          .map((fav) => fav['note_id'] as String)
-          .toSet();
+      final favoriteNoteIds =
+          (favoritesResponse as List)
+              .map((fav) => fav['note_id'] as String)
+              .toSet();
 
-      final owned = (ownedResponse as List).map((note) {
-        final noteMap = Map<String, dynamic>.from(note as Map);
-        return {
-          ...noteMap,
-          'is_favorite': favoriteNoteIds.contains(noteMap['id']),
-          'is_owned': true,
-        };
-      }).toList();
+      final owned =
+          (ownedResponse as List).map((note) {
+            final noteMap = Map<String, dynamic>.from(note as Map);
+            return {
+              ...noteMap,
+              'is_favorite': favoriteNoteIds.contains(noteMap['id']),
+              'is_owned': true,
+            };
+          }).toList();
 
       // Merge with whatever community notes are already loaded, then take the
       // overall 5 most recent across both.
-      final combined = [...owned, ..._communityNotes]
-        ..sort((a, b) {
-          final aDate = DateTime.tryParse('${a['updated_at']}Z') ??
-              DateTime.fromMillisecondsSinceEpoch(0);
-          final bDate = DateTime.tryParse('${b['updated_at']}Z') ??
-              DateTime.fromMillisecondsSinceEpoch(0);
-          return bDate.compareTo(aDate);
-        });
+      final combined = [...owned, ..._communityNotes]..sort((a, b) {
+        final aDate =
+            DateTime.tryParse('${a['updated_at']}Z') ??
+            DateTime.fromMillisecondsSinceEpoch(0);
+        final bDate =
+            DateTime.tryParse('${b['updated_at']}Z') ??
+            DateTime.fromMillisecondsSinceEpoch(0);
+        return bDate.compareTo(aDate);
+      });
 
       if (!mounted) return;
       setState(() {
@@ -207,9 +206,9 @@ class _NotesPageState extends State<NotesPage> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoadingRecent = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error loading recent notes: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error loading recent notes: $e')));
     }
   }
 
@@ -241,9 +240,9 @@ class _NotesPageState extends State<NotesPage> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoadingRecentFolders = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error loading folders: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error loading folders: $e')));
     }
   }
 
@@ -256,7 +255,8 @@ class _NotesPageState extends State<NotesPage> {
     final user = _supabase.auth.currentUser;
     if (user == null) return;
 
-    String? pickerFolderId; // current folder shown inside picker (starts at root)
+    String?
+    pickerFolderId; // current folder shown inside picker (starts at root)
     List<Map<String, dynamic>> pickerFolders = [];
     final List<Map<String, dynamic>> pickerPath = [];
     bool pickerLoading = true;
@@ -264,9 +264,10 @@ class _NotesPageState extends State<NotesPage> {
     Future<void> loadPickerFolders(StateSetter setSheetState) async {
       setSheetState(() => pickerLoading = true);
       final query = _supabase.from('folders').select().eq('user_id', user.id);
-      final response = pickerFolderId == null
-          ? await query.filter('parent_id', 'is', null).order('name')
-          : await query.eq('parent_id', pickerFolderId!).order('name');
+      final response =
+          pickerFolderId == null
+              ? await query.filter('parent_id', 'is', null).order('name')
+              : await query.eq('parent_id', pickerFolderId!).order('name');
       setSheetState(() {
         pickerFolders = List<Map<String, dynamic>>.from(response as List);
         pickerLoading = false;
@@ -301,18 +302,25 @@ class _NotesPageState extends State<NotesPage> {
                       children: [
                         if (pickerPath.isNotEmpty)
                           IconButton(
-                            icon: const Icon(Icons.arrow_back, color: Colors.white),
+                            icon: const Icon(
+                              Icons.arrow_back,
+                              color: Colors.white,
+                            ),
                             splashRadius: 20,
                             onPressed: () {
                               pickerPath.removeLast();
                               pickerFolderId =
-                                  pickerPath.isEmpty ? null : pickerPath.last['id'];
+                                  pickerPath.isEmpty
+                                      ? null
+                                      : pickerPath.last['id'];
                               loadPickerFolders(setSheetState);
                             },
                           ),
                         Expanded(
                           child: Text(
-                            pickerPath.isEmpty ? 'Move to Folder' : pickerPath.last['name'],
+                            pickerPath.isEmpty
+                                ? 'Move to Folder'
+                                : pickerPath.last['name'],
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 17,
@@ -326,42 +334,52 @@ class _NotesPageState extends State<NotesPage> {
                     const Divider(color: Colors.grey),
                     ConstrainedBox(
                       constraints: const BoxConstraints(maxHeight: 320),
-                      child: pickerLoading
-                          ? const Padding(
-                              padding: EdgeInsets.symmetric(vertical: 30),
-                              child: Center(
-                                child: CircularProgressIndicator(color: kPrimaryColor),
-                              ),
-                            )
-                          : pickerFolders.isEmpty
+                      child:
+                          pickerLoading
                               ? const Padding(
-                                  padding: EdgeInsets.all(20),
-                                  child: Text(
-                                    'No subfolders here',
-                                    style: TextStyle(color: Colors.grey),
+                                padding: EdgeInsets.symmetric(vertical: 30),
+                                child: Center(
+                                  child: CircularProgressIndicator(
+                                    color: kPrimaryColor,
                                   ),
-                                )
-                              : ListView.builder(
-                                  shrinkWrap: true,
-                                  itemCount: pickerFolders.length,
-                                  itemBuilder: (context, index) {
-                                    final folder = pickerFolders[index];
-                                    return ListTile(
-                                      leading: const Icon(Icons.folder, color: kAccentYellow),
-                                      title: Text(
-                                        folder['name'],
-                                        style: const TextStyle(color: Colors.white),
-                                      ),
-                                      trailing:
-                                          const Icon(Icons.chevron_right, color: Colors.grey),
-                                      onTap: () {
-                                        pickerPath.add(folder);
-                                        pickerFolderId = folder['id'];
-                                        loadPickerFolders(setSheetState);
-                                      },
-                                    );
-                                  },
                                 ),
+                              )
+                              : pickerFolders.isEmpty
+                              ? const Padding(
+                                padding: EdgeInsets.all(20),
+                                child: Text(
+                                  'No subfolders here',
+                                  style: TextStyle(color: Colors.grey),
+                                ),
+                              )
+                              : ListView.builder(
+                                shrinkWrap: true,
+                                itemCount: pickerFolders.length,
+                                itemBuilder: (context, index) {
+                                  final folder = pickerFolders[index];
+                                  return ListTile(
+                                    leading: const Icon(
+                                      Icons.folder,
+                                      color: kAccentYellow,
+                                    ),
+                                    title: Text(
+                                      folder['name'],
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                    trailing: const Icon(
+                                      Icons.chevron_right,
+                                      color: Colors.grey,
+                                    ),
+                                    onTap: () {
+                                      pickerPath.add(folder);
+                                      pickerFolderId = folder['id'];
+                                      loadPickerFolders(setSheetState);
+                                    },
+                                  );
+                                },
+                              ),
                     ),
                     const SizedBox(height: 12),
                     SizedBox(
@@ -369,7 +387,9 @@ class _NotesPageState extends State<NotesPage> {
                       child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
                           backgroundColor: kPrimaryColor,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
                           padding: const EdgeInsets.symmetric(vertical: 14),
                         ),
                         onPressed: () async {
@@ -443,9 +463,9 @@ class _NotesPageState extends State<NotesPage> {
       await Future.wait([_loadSavedNotes(), _loadRecentNotes()]);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to move notes: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to move notes: $e')));
     }
   }
 
@@ -469,7 +489,9 @@ class _NotesPageState extends State<NotesPage> {
               bottom: false,
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 4),
-                constraints: const BoxConstraints(minHeight: kToolbarHeight), // 56
+                constraints: const BoxConstraints(
+                  minHeight: kToolbarHeight,
+                ), // 56
                 decoration: BoxDecoration(
                   color: kCardColor,
                   boxShadow: [
@@ -502,9 +524,15 @@ class _NotesPageState extends State<NotesPage> {
                     const SizedBox(width: 6),
                     const Text(
                       'Selected',
-                      style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w600, letterSpacing: 0.2),
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 17,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.2,
+                      ),
                     ),
                     const Spacer(),
+
                     /// Move to folder
                     IconButton(
                       icon: const Icon(Icons.folder_open_outlined),
@@ -521,7 +549,7 @@ class _NotesPageState extends State<NotesPage> {
                       color: Colors.white,
                       splashRadius: 20,
                       onPressed: () {
-                         _confirmBatchDelete();
+                        _confirmBatchDelete();
                       },
                     ),
 
@@ -534,7 +562,11 @@ class _NotesPageState extends State<NotesPage> {
                         setState(() {
                           _selectedNoteIds
                             ..clear()
-                            ..addAll(_filteredRecentNotes.map((n) => n['id'] as String));
+                            ..addAll(
+                              _filteredRecentNotes.map(
+                                (n) => n['id'] as String,
+                              ),
+                            );
                         });
                       },
                     ),
@@ -563,10 +595,14 @@ class _NotesPageState extends State<NotesPage> {
     if (user == null || _selectedNoteIds.isEmpty) return;
 
     final allNotes = [..._recentNotes, ..._communityNotes];
-    final ownedIds = _selectedNoteIds.where((id) {
-      final match = allNotes.firstWhere((n) => n['id'] == id, orElse: () => <String, dynamic>{});
-      return match['is_owned'] == true;
-    }).toList();
+    final ownedIds =
+        _selectedNoteIds.where((id) {
+          final match = allNotes.firstWhere(
+            (n) => n['id'] == id,
+            orElse: () => <String, dynamic>{},
+          );
+          return match['is_owned'] == true;
+        }).toList();
 
     if (ownedIds.isEmpty) {
       _clearSelection();
@@ -578,10 +614,11 @@ class _NotesPageState extends State<NotesPage> {
           .from('notes')
           .update({
             'deleted_at': DateTime.now().toUtc().toIso8601String(),
-            'delete_expires_at': DateTime.now()
-                .toUtc()
-                .add(const Duration(days: 10))
-                .toIso8601String(),
+            'delete_expires_at':
+                DateTime.now()
+                    .toUtc()
+                    .add(const Duration(days: 10))
+                    .toIso8601String(),
           })
           .eq('user_id', user.id)
           .inFilter('id', ownedIds);
@@ -590,9 +627,7 @@ class _NotesPageState extends State<NotesPage> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            '${ownedIds.length} notes moved to trash (10 days)',
-          ),
+          content: Text('${ownedIds.length} notes moved to trash (10 days)'),
         ),
       );
 
@@ -600,61 +635,65 @@ class _NotesPageState extends State<NotesPage> {
       _loadRecentNotes();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to delete notes: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to delete notes: $e')));
     }
   }
-
 
   void _confirmBatchDelete() {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: kCardColor,
-        title: const Text(
-          'Delete notes',
-          style: TextStyle(color: Colors.white),
-        ),
-        content: Text(
-          'Delete ${_selectedNoteIds.length} selected notes? This note will be deleted permanently after 10 days.',
-          style: const TextStyle(color: Colors.grey),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+      builder:
+          (context) => AlertDialog(
+            backgroundColor: kCardColor,
+            title: const Text(
+              'Delete notes',
+              style: TextStyle(color: Colors.white),
+            ),
+            content: Text(
+              'Delete ${_selectedNoteIds.length} selected notes? This note will be deleted permanently after 10 days.',
+              style: const TextStyle(color: Colors.grey),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text(
+                  'Cancel',
+                  style: TextStyle(color: Colors.grey),
+                ),
+              ),
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _deleteSelectedNotes();
+                },
+                child: const Text(
+                  'Delete',
+                  style: TextStyle(color: Colors.red),
+                ),
+              ),
+            ],
           ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _deleteSelectedNotes();
-            },
-            child: const Text('Delete', style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
     );
   }
-
-
 
   Future<void> _addSelectedToStarred() async {
     final user = _supabase.auth.currentUser;
     if (user == null || _selectedNoteIds.isEmpty) return;
 
     try {
-      final inserts = _selectedNoteIds.map((noteId) {
-        return {
-          'user_id': user.id,
-          'note_id': noteId,
-        };
-      }).toList();
+      final inserts =
+          _selectedNoteIds.map((noteId) {
+            return {'user_id': user.id, 'note_id': noteId};
+          }).toList();
 
-      await _supabase.from('favorites').upsert(
-        inserts,
-        onConflict: 'user_id,note_id', // prevents duplicates
-      );
+      await _supabase
+          .from('favorites')
+          .upsert(
+            inserts,
+            onConflict: 'user_id,note_id', // prevents duplicates
+          );
 
       if (!mounted) return;
 
@@ -668,19 +707,20 @@ class _NotesPageState extends State<NotesPage> {
       _loadRecentNotes();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to add to starred: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to add to starred: $e')));
     }
   }
 
   bool _areAllSelectedStarred() {
     if (_selectedNoteIds.isEmpty) return false;
 
-    final starredIds = _recentNotes
-        .where((n) => n['is_favorite'] == true)
-        .map((n) => n['id'] as String)
-        .toSet();
+    final starredIds =
+        _recentNotes
+            .where((n) => n['is_favorite'] == true)
+            .map((n) => n['id'] as String)
+            .toSet();
 
     return _selectedNoteIds.every(starredIds.contains);
   }
@@ -699,7 +739,9 @@ class _NotesPageState extends State<NotesPage> {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${_selectedNoteIds.length} removed from starred')),
+        SnackBar(
+          content: Text('${_selectedNoteIds.length} removed from starred'),
+        ),
       );
 
       _clearSelection();
@@ -711,7 +753,6 @@ class _NotesPageState extends State<NotesPage> {
       );
     }
   }
-
 
   void _showSelectionActionsBottomSheet() {
     final allStarred = _areAllSelectedStarred();
@@ -785,7 +826,6 @@ class _NotesPageState extends State<NotesPage> {
     );
   }
 
-
   @override
   void initState() {
     super.initState();
@@ -816,7 +856,6 @@ class _NotesPageState extends State<NotesPage> {
     widget.onSelectionModeChanged?.call(value);
   }
 
-
   void _onLongPressNote(String noteId) {
     if (!_selectionMode) {
       _setSelectionMode(true);
@@ -825,7 +864,6 @@ class _NotesPageState extends State<NotesPage> {
       _selectedNoteIds.add(noteId);
     });
   }
-
 
   void _onTapNote(String noteId, VoidCallback openNote) {
     if (_selectionMode) {
@@ -846,7 +884,7 @@ class _NotesPageState extends State<NotesPage> {
 
   void _clearSelection() {
     _setSelectionMode(false);
-  } 
+  }
 
   Future<void> _deleteNote(String noteId, String fileUrl) async {
     try {
@@ -856,10 +894,11 @@ class _NotesPageState extends State<NotesPage> {
           .from('notes')
           .update({
             'deleted_at': DateTime.now().toUtc().toIso8601String(),
-            'delete_expires_at': DateTime.now()
-                .toUtc()
-                .add(const Duration(days: 10))
-                .toIso8601String(),
+            'delete_expires_at':
+                DateTime.now()
+                    .toUtc()
+                    .add(const Duration(days: 10))
+                    .toIso8601String(),
           })
           .eq('id', noteId)
           .eq('user_id', supabase.auth.currentUser!.id);
@@ -875,19 +914,16 @@ class _NotesPageState extends State<NotesPage> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error deleting note: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error deleting note: $e')));
       }
     }
   }
 
-
-
-
   String _getTimeAgo(String? timestamp) {
     if (timestamp == null) return 'Unknown';
-    
+
     final dateTime = DateTime.parse(timestamp + 'Z').toLocal();
     final now = DateTime.now();
     final difference = now.difference(dateTime);
@@ -917,9 +953,7 @@ class _NotesPageState extends State<NotesPage> {
       final title = (note['title'] ?? '').toString().toLowerCase();
       final author = (note['author_name'] ?? '').toString().toLowerCase();
       final tagsRaw = note['tags'];
-      final tags = tagsRaw is List
-          ? tagsRaw.join(' ').toLowerCase()
-          : '';
+      final tags = tagsRaw is List ? tagsRaw.join(' ').toLowerCase() : '';
       return title.contains(_searchQuery) ||
           author.contains(_searchQuery) ||
           tags.contains(_searchQuery);
@@ -929,7 +963,11 @@ class _NotesPageState extends State<NotesPage> {
   List<Map<String, dynamic>> get _filteredRecentFolders {
     if (_searchQuery.isEmpty) return _recentFolders;
     return _recentFolders
-        .where((folder) => (folder['name'] ?? '').toString().toLowerCase().contains(_searchQuery))
+        .where(
+          (folder) => (folder['name'] ?? '').toString().toLowerCase().contains(
+            _searchQuery,
+          ),
+        )
         .toList();
   }
 
@@ -991,16 +1029,14 @@ class _NotesPageState extends State<NotesPage> {
       return GestureDetector(
         key: ValueKey('community_$noteId'),
         onLongPress: () => _onLongPressNote(noteId),
-        onTap: () => _onTapNote(
-          noteId,
-          () {
-            FileOpener.openFile(
-              context,
-              note['file_url'],
-              '${note['title']}.${note['file_type']}',
-            );
-          },
-        ),
+        onTap:
+            () => _onTapNote(noteId, () {
+              FileOpener.openFile(
+                context,
+                note['file_url'],
+                '${note['title']}.${note['file_type']}',
+              );
+            }),
         child: NoteItem(
           noteId: noteId,
           selectionMode: _selectionMode,
@@ -1026,16 +1062,14 @@ class _NotesPageState extends State<NotesPage> {
     return GestureDetector(
       key: ValueKey('owned_$noteId'),
       onLongPress: () => _onLongPressNote(noteId),
-      onTap: () => _onTapNote(
-        noteId,
-        () {
-          FileOpener.openFile(
-            context,
-            note['file_url'],
-            '${note['title']}.${note['file_type']}',
-          );
-        },
-      ),
+      onTap:
+          () => _onTapNote(noteId, () {
+            FileOpener.openFile(
+              context,
+              note['file_url'],
+              '${note['title']}.${note['file_type']}',
+            );
+          }),
       child: NoteItem(
         noteId: noteId,
         selectionMode: _selectionMode,
@@ -1073,7 +1107,11 @@ class _NotesPageState extends State<NotesPage> {
           children: [
             const Text(
               'Recent',
-              style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+              ),
             ),
             GestureDetector(
               onTap: () {
@@ -1091,7 +1129,11 @@ class _NotesPageState extends State<NotesPage> {
                 children: [
                   Text(
                     'View All',
-                    style: TextStyle(color: kPrimaryColor, fontSize: 14, fontWeight: FontWeight.w600),
+                    style: TextStyle(
+                      color: kPrimaryColor,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                   SizedBox(width: 2),
                   Icon(Icons.chevron_right, color: kPrimaryColor, size: 18),
@@ -1104,7 +1146,9 @@ class _NotesPageState extends State<NotesPage> {
         if (isLoading)
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 20),
-            child: Center(child: CircularProgressIndicator(color: kPrimaryColor)),
+            child: Center(
+              child: CircularProgressIndicator(color: kPrimaryColor),
+            ),
           )
         else if (folders.isEmpty && notes.isEmpty)
           Center(
@@ -1113,13 +1157,17 @@ class _NotesPageState extends State<NotesPage> {
               child: Column(
                 children: [
                   Icon(
-                    _searchQuery.isEmpty ? Icons.note_add_outlined : Icons.search_off,
+                    _searchQuery.isEmpty
+                        ? Icons.note_add_outlined
+                        : Icons.search_off,
                     size: 64,
                     color: Colors.grey[600],
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    _searchQuery.isEmpty ? 'Nothing here yet' : 'No matches for your search',
+                    _searchQuery.isEmpty
+                        ? 'Nothing here yet'
+                        : 'No matches for your search',
                     style: TextStyle(color: Colors.grey[400], fontSize: 16),
                   ),
                   const SizedBox(height: 8),
@@ -1145,17 +1193,14 @@ class _NotesPageState extends State<NotesPage> {
                 mainAxisSpacing: 12,
               ),
               itemCount: folders.length,
-              itemBuilder: (context, index) => _buildFolderGridTile(folders[index]),
+              itemBuilder:
+                  (context, index) => _buildFolderGridTile(folders[index]),
             ),
           if (folders.isNotEmpty && notes.isNotEmpty) ...[
-  const SizedBox(height: 16),
-  const Divider(
-    color: Color(0xFF3A3A3C),
-    thickness: 1,
-    height: 1,
-  ),
-  const SizedBox(height: 16),
-],
+            const SizedBox(height: 16),
+            const Divider(color: Color(0xFF3A3A3C), thickness: 1, height: 1),
+            const SizedBox(height: 16),
+          ],
           if (notes.isNotEmpty)
             ListView.builder(
               shrinkWrap: true,
@@ -1177,119 +1222,156 @@ class _NotesPageState extends State<NotesPage> {
           Column(
             children: [
               Expanded(
-                child: (_isLoadingRecent && _isLoadingSaved)
-                    ? const Center(
-                        child: CircularProgressIndicator(color: kPrimaryColor),
-                      )
-                    : RefreshIndicator(
-                        color: kPrimaryColor,
-                        onRefresh: () async {
-                          await Future.wait([_loadSavedNotes(), _loadRecentNotes(), _loadRecentFolders()]);
-                        },
-                        child: GestureDetector(
-                          behavior: HitTestBehavior.translucent,
-                          onTap: _selectionMode ? _clearSelection : null,
-                          child: SingleChildScrollView(
-                            physics: const AlwaysScrollableScrollPhysics(),
-                            child: Padding(
-                              padding: const EdgeInsets.all(16),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  // Search bar
-                                  AnimatedPadding(
-                                    duration: const Duration(milliseconds: 180),
-                                    curve: Curves.easeOut,
-                                    padding: EdgeInsets.only(
-                                      top: _selectionMode ? 16 : 0,
+                child:
+                    (_isLoadingRecent && _isLoadingSaved)
+                        ? const Center(
+                          child: CircularProgressIndicator(
+                            color: kPrimaryColor,
+                          ),
+                        )
+                        : RefreshIndicator(
+                          color: kPrimaryColor,
+                          onRefresh: () async {
+                            await Future.wait([
+                              _loadSavedNotes(),
+                              _loadRecentNotes(),
+                              _loadRecentFolders(),
+                            ]);
+                          },
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.translucent,
+                            onTap: _selectionMode ? _clearSelection : null,
+                            child: SingleChildScrollView(
+                              physics: const AlwaysScrollableScrollPhysics(),
+                              child: Padding(
+                                padding: const EdgeInsets.all(16),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    // Search bar
+                                    AnimatedPadding(
+                                      duration: const Duration(
+                                        milliseconds: 180,
+                                      ),
+                                      curve: Curves.easeOut,
+                                      padding: EdgeInsets.only(
+                                        top: _selectionMode ? 16 : 0,
+                                      ),
+                                      child: Container(
+                                        decoration: BoxDecoration(
+                                          color: kCardColor,
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                        ),
+                                        child: TextField(
+                                          controller: _searchController,
+                                          decoration: InputDecoration(
+                                            hintText:
+                                                'Search by title, tags, or author...',
+                                            hintStyle: const TextStyle(
+                                              color: Colors.grey,
+                                            ),
+                                            prefixIcon: const Icon(
+                                              Icons.search,
+                                              color: Colors.grey,
+                                            ),
+                                            suffixIcon:
+                                                _searchQuery.isNotEmpty
+                                                    ? IconButton(
+                                                      icon: const Icon(
+                                                        Icons.close,
+                                                        color: Colors.grey,
+                                                      ),
+                                                      splashRadius: 18,
+                                                      onPressed:
+                                                          () =>
+                                                              _searchController
+                                                                  .clear(),
+                                                    )
+                                                    : null,
+                                            border: InputBorder.none,
+                                            contentPadding:
+                                                const EdgeInsets.symmetric(
+                                                  horizontal: 20,
+                                                  vertical: 15,
+                                                ),
+                                          ),
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                      ),
                                     ),
-                                    child: Container(
-                                      decoration: BoxDecoration(
-                                        color: kCardColor,
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      child: TextField(
-                                        controller: _searchController,
-                                        decoration: InputDecoration(
-                                          hintText: 'Search by title, tags, or author...',
-                                          hintStyle: const TextStyle(color: Colors.grey),
-                                          prefixIcon: const Icon(Icons.search, color: Colors.grey),
-                                          suffixIcon: _searchQuery.isNotEmpty
-                                              ? IconButton(
-                                                  icon: const Icon(Icons.close, color: Colors.grey),
-                                                  splashRadius: 18,
-                                                  onPressed: () => _searchController.clear(),
-                                                )
-                                              : null,
-                                          border: InputBorder.none,
-                                          contentPadding: const EdgeInsets.symmetric(
-                                              horizontal: 20, vertical: 15),
+
+                                    const SizedBox(height: 16),
+
+                                    // Action Buttons
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: _AnimatedActionButton(
+                                            color: kPrimaryColor,
+                                            icon: Icons.add,
+                                            onTap: () {
+                                              Navigator.push(
+                                                context,
+                                                MaterialPageRoute(
+                                                  builder:
+                                                      (context) =>
+                                                          const AddNotePage(),
+                                                ),
+                                              ).then((_) => _loadRecentNotes());
+                                            },
+                                          ),
                                         ),
-                                        style: const TextStyle(color: Colors.white),
-                                      ),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: _AnimatedActionButton(
+                                            color: kAccentYellow,
+                                            icon: Icons.star,
+                                            onTap: () {
+                                              Navigator.push(
+                                                context,
+                                                MaterialPageRoute(
+                                                  builder:
+                                                      (context) =>
+                                                          FavoritesPage(),
+                                                ),
+                                              );
+                                            },
+                                          ),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: _AnimatedActionButton(
+                                            color: const Color(0xFF4B5563),
+                                            icon: Icons.delete,
+                                            onTap: () {
+                                              Navigator.push(
+                                                context,
+                                                MaterialPageRoute(
+                                                  builder:
+                                                      (context) =>
+                                                          const TrashPage(),
+                                                ),
+                                              );
+                                            },
+                                          ),
+                                        ),
+                                      ],
                                     ),
-                                  ),
 
-                                  const SizedBox(height: 16),
+                                    const SizedBox(height: 24),
 
-                                  // Action Buttons
-                                  Row(
-                                    children: [
-                                      Expanded(
-                                        child: _AnimatedActionButton(
-                                          color: kPrimaryColor,
-                                          icon: Icons.add,
-                                          onTap: () {
-                                            Navigator.push(
-                                              context,
-                                              MaterialPageRoute(
-                                                  builder: (context) => const AddNotePage()),
-                                            ).then((_) => _loadRecentNotes());
-                                          },
-                                        ),
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Expanded(
-                                        child: _AnimatedActionButton(
-                                          color: kAccentYellow,
-                                          icon: Icons.star,
-                                          onTap: () {
-                                            Navigator.push(
-                                              context,
-                                              MaterialPageRoute(
-                                                  builder: (context) => FavoritesPage()),
-                                            );
-                                          },
-                                        ),
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Expanded(
-                                        child: _AnimatedActionButton(
-                                          color: const Color(0xFF4B5563),
-                                          icon: Icons.delete,
-                                          onTap: () {
-                                            Navigator.push(
-                                              context,
-                                              MaterialPageRoute(
-                                                builder: (context) => const TrashPage(),
-                                              ),
-                                            );
-                                          },
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-
-                                  const SizedBox(height: 24),
-
-                                  _buildFilesSection(),
-                                  const SizedBox(height: 100),
-                                ],
+                                    _buildFilesSection(),
+                                    const SizedBox(height: 100),
+                                  ],
+                                ),
                               ),
                             ),
                           ),
                         ),
-                      ),
               ),
             ],
           ),
@@ -1306,10 +1388,7 @@ class _NotesPageState extends State<NotesPage> {
     bool isDestructive = false,
   }) {
     return ListTile(
-      leading: Icon(
-        icon,
-        color: isDestructive ? Colors.red : Colors.white,
-      ),
+      leading: Icon(icon, color: isDestructive ? Colors.red : Colors.white),
       title: Text(
         label,
         style: TextStyle(
@@ -1320,7 +1399,6 @@ class _NotesPageState extends State<NotesPage> {
       onTap: onTap,
     );
   }
-
 }
 
 // Animated Action Button Widget
@@ -1351,9 +1429,10 @@ class _AnimatedActionButtonState extends State<_AnimatedActionButton>
       duration: const Duration(milliseconds: 150),
       vsync: this,
     );
-    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.95).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-    );
+    _scaleAnimation = Tween<double>(
+      begin: 1.0,
+      end: 0.95,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
   }
 
   @override
@@ -1451,7 +1530,7 @@ class _NoteItemState extends State<NoteItem>
   void initState() {
     super.initState();
     isFavorite = widget.isFavorite;
-    
+
     _animationController = AnimationController(
       duration: const Duration(milliseconds: 400),
       vsync: this,
@@ -1459,18 +1538,24 @@ class _NoteItemState extends State<NoteItem>
 
     _scaleAnimation = TweenSequence<double>([
       TweenSequenceItem(
-        tween: Tween<double>(begin: 1.0, end: 0.0)
-            .chain(CurveTween(curve: Curves.easeInOut)),
+        tween: Tween<double>(
+          begin: 1.0,
+          end: 0.0,
+        ).chain(CurveTween(curve: Curves.easeInOut)),
         weight: 25,
       ),
       TweenSequenceItem(
-        tween: Tween<double>(begin: 0.0, end: 1.3)
-            .chain(CurveTween(curve: Curves.easeOutBack)),
+        tween: Tween<double>(
+          begin: 0.0,
+          end: 1.3,
+        ).chain(CurveTween(curve: Curves.easeOutBack)),
         weight: 50,
       ),
       TweenSequenceItem(
-        tween: Tween<double>(begin: 1.3, end: 1.0)
-            .chain(CurveTween(curve: Curves.easeInOut)),
+        tween: Tween<double>(
+          begin: 1.3,
+          end: 1.0,
+        ).chain(CurveTween(curve: Curves.easeInOut)),
         weight: 25,
       ),
     ]).animate(_animationController);
@@ -1515,17 +1600,16 @@ class _NoteItemState extends State<NoteItem>
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to share note: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to share note: $e')));
     }
   }
-
 
   Future<void> _toggleFavorite() async {
     final supabase = Supabase.instance.client;
     final user = supabase.auth.currentUser;
-    
+
     if (user == null) return;
 
     try {
@@ -1547,249 +1631,298 @@ class _NoteItemState extends State<NoteItem>
         isFavorite = !isFavorite;
       });
     } catch (e) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error updating favorite: $e')),
-      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error updating favorite: $e')));
     }
   }
-  
 
   void _showEditDialog(BuildContext context) {
-    final TextEditingController titleController = TextEditingController(text: widget.title);
-    final TextEditingController descController = TextEditingController(text: widget.description ?? '');
+    final TextEditingController titleController = TextEditingController(
+      text: widget.title,
+    );
+    final TextEditingController descController = TextEditingController(
+      text: widget.description ?? '',
+    );
     final TextEditingController tagController = TextEditingController();
     List<String> editableTags = List<String>.from(widget.tags);
 
     showDialog(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          backgroundColor: kCardColor,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          title: const Text(
-            'Edit Note',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Title input
-                const Text(
-                  'Title',
-                  style: TextStyle(color: Colors.grey, fontSize: 13),
-                ),
-                const SizedBox(height: 6),
-                Container(
-                  decoration: BoxDecoration(
-                    color: kDarkSurface,
-                    borderRadius: BorderRadius.circular(10),
+      builder:
+          (context) => StatefulBuilder(
+            builder:
+                (context, setDialogState) => AlertDialog(
+                  backgroundColor: kCardColor,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
                   ),
-                  child: TextField(
-                    controller: titleController,
-                    style: const TextStyle(color: Colors.white, fontSize: 15),
-                    decoration: const InputDecoration(
-                      hintText: 'Enter title...',
-                      hintStyle: TextStyle(color: Colors.grey, fontSize: 14),
-                      border: InputBorder.none,
-                      contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  title: const Text(
+                    'Edit Note',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
-                ),
-                const SizedBox(height: 16),
-                
-                // Description input
-                const Text(
-                  'Description',
-                  style: TextStyle(color: Colors.grey, fontSize: 13),
-                ),
-                const SizedBox(height: 6),
-                Container(
-                  decoration: BoxDecoration(
-                    color: kDarkSurface,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: TextField(
-                    controller: descController,
-                    style: const TextStyle(color: Colors.white, fontSize: 15),
-                    maxLines: 3,
-                    decoration: const InputDecoration(
-                      hintText: 'Add a description...',
-                      hintStyle: TextStyle(color: Colors.grey, fontSize: 14),
-                      border: InputBorder.none,
-                      contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                
-                // Tags section
-                const Text(
-                  'Tags',
-                  style: TextStyle(color: Colors.grey, fontSize: 13),
-                ),
-                const SizedBox(height: 6),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: kDarkSurface,
-                          borderRadius: BorderRadius.circular(10),
+                  content: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Title input
+                        const Text(
+                          'Title',
+                          style: TextStyle(color: Colors.grey, fontSize: 13),
                         ),
-                        child: TextField(
-                          controller: tagController,
-                          style: const TextStyle(color: Colors.white, fontSize: 15),
-                          decoration: const InputDecoration(
-                            hintText: 'Add a tag...',
-                            hintStyle: TextStyle(color: Colors.grey, fontSize: 14),
-                            border: InputBorder.none,
-                            contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        const SizedBox(height: 6),
+                        Container(
+                          decoration: BoxDecoration(
+                            color: kDarkSurface,
+                            borderRadius: BorderRadius.circular(10),
                           ),
-                          onSubmitted: (value) {
-                            final trimmed = value.trim().toLowerCase();
-                            if (trimmed.isNotEmpty && !editableTags.contains(trimmed)) {
-                              setDialogState(() {
-                                editableTags.add(trimmed);
-                                tagController.clear();
-                              });
-                            }
-                          },
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: kPrimaryColor,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: IconButton(
-                        icon: const Icon(Icons.add, color: Colors.white, size: 20),
-                        onPressed: () {
-                          final trimmed = tagController.text.trim().toLowerCase();
-                          if (trimmed.isNotEmpty && !editableTags.contains(trimmed)) {
-                            setDialogState(() {
-                              editableTags.add(trimmed);
-                              tagController.clear();
-                            });
-                          }
-                        },
-                        padding: const EdgeInsets.all(8),
-                        constraints: const BoxConstraints(),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                
-                // Display tags
-                if (editableTags.isNotEmpty)
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 6,
-                    children: editableTags.map((tag) {
-                      return Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                        decoration: BoxDecoration(
-                          color: kDarkSurface,
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: kPrimaryColor.withOpacity(0.3), width: 1),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              tag,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w400,
+                          child: TextField(
+                            controller: titleController,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 15,
+                            ),
+                            decoration: const InputDecoration(
+                              hintText: 'Enter title...',
+                              hintStyle: TextStyle(
+                                color: Colors.grey,
+                                fontSize: 14,
+                              ),
+                              border: InputBorder.none,
+                              contentPadding: EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 12,
                               ),
                             ),
-                            const SizedBox(width: 6),
-                            GestureDetector(
-                              onTap: () {
-                                setDialogState(() {
-                                  editableTags.remove(tag);
-                                });
-                              },
-                              child: Icon(
-                                Icons.close,
-                                color: Colors.grey[400],
-                                size: 14,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+
+                        // Description input
+                        const Text(
+                          'Description',
+                          style: TextStyle(color: Colors.grey, fontSize: 13),
+                        ),
+                        const SizedBox(height: 6),
+                        Container(
+                          decoration: BoxDecoration(
+                            color: kDarkSurface,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: TextField(
+                            controller: descController,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 15,
+                            ),
+                            maxLines: 3,
+                            decoration: const InputDecoration(
+                              hintText: 'Add a description...',
+                              hintStyle: TextStyle(
+                                color: Colors.grey,
+                                fontSize: 14,
+                              ),
+                              border: InputBorder.none,
+                              contentPadding: EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 12,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+
+                        // Tags section
+                        const Text(
+                          'Tags',
+                          style: TextStyle(color: Colors.grey, fontSize: 13),
+                        ),
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: kDarkSurface,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: TextField(
+                                  controller: tagController,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 15,
+                                  ),
+                                  decoration: const InputDecoration(
+                                    hintText: 'Add a tag...',
+                                    hintStyle: TextStyle(
+                                      color: Colors.grey,
+                                      fontSize: 14,
+                                    ),
+                                    border: InputBorder.none,
+                                    contentPadding: EdgeInsets.symmetric(
+                                      horizontal: 14,
+                                      vertical: 12,
+                                    ),
+                                  ),
+                                  onSubmitted: (value) {
+                                    final trimmed = value.trim().toLowerCase();
+                                    if (trimmed.isNotEmpty &&
+                                        !editableTags.contains(trimmed)) {
+                                      setDialogState(() {
+                                        editableTags.add(trimmed);
+                                        tagController.clear();
+                                      });
+                                    }
+                                  },
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Container(
+                              decoration: BoxDecoration(
+                                color: kPrimaryColor,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: IconButton(
+                                icon: const Icon(
+                                  Icons.add,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
+                                onPressed: () {
+                                  final trimmed =
+                                      tagController.text.trim().toLowerCase();
+                                  if (trimmed.isNotEmpty &&
+                                      !editableTags.contains(trimmed)) {
+                                    setDialogState(() {
+                                      editableTags.add(trimmed);
+                                      tagController.clear();
+                                    });
+                                  }
+                                },
+                                padding: const EdgeInsets.all(8),
+                                constraints: const BoxConstraints(),
                               ),
                             ),
                           ],
                         ),
-                      );
-                    }).toList(),
-                  ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text(
-                'Cancel',
-                style: TextStyle(color: Colors.grey, fontSize: 15),
-              ),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                try {
-                  final supabase = Supabase.instance.client;
-                  await supabase
-                      .from('notes')
-                      .update({
-                        'title': titleController.text.trim(),
-                        'description': descController.text.trim().isEmpty ? null : descController.text.trim(),
-                        'tags': editableTags,
-                      })
-                      .eq('id', widget.noteId);
-                  
-                  if (!mounted) return;
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Note updated successfully'),
-                        backgroundColor: Colors.green,
-                      ),
-                    );
-                    widget.onRefresh();
-                } catch (e) {
-                  if (!mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Error updating note: $e'),
-                      backgroundColor: Colors.red,
+                        const SizedBox(height: 12),
+
+                        // Display tags
+                        if (editableTags.isNotEmpty)
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 6,
+                            children:
+                                editableTags.map((tag) {
+                                  return Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 5,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: kDarkSurface,
+                                      borderRadius: BorderRadius.circular(6),
+                                      border: Border.all(
+                                        color: kPrimaryColor.withOpacity(0.3),
+                                        width: 1,
+                                      ),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          tag,
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w400,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 6),
+                                        GestureDetector(
+                                          onTap: () {
+                                            setDialogState(() {
+                                              editableTags.remove(tag);
+                                            });
+                                          },
+                                          child: Icon(
+                                            Icons.close,
+                                            color: Colors.grey[400],
+                                            size: 14,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                }).toList(),
+                          ),
+                      ],
                     ),
-                  );
-                }
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: kPrimaryColor,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text(
+                        'Cancel',
+                        style: TextStyle(color: Colors.grey, fontSize: 15),
+                      ),
+                    ),
+                    ElevatedButton(
+                      onPressed: () async {
+                        try {
+                          final supabase = Supabase.instance.client;
+                          await supabase
+                              .from('notes')
+                              .update({
+                                'title': titleController.text.trim(),
+                                'description':
+                                    descController.text.trim().isEmpty
+                                        ? null
+                                        : descController.text.trim(),
+                                'tags': editableTags,
+                              })
+                              .eq('id', widget.noteId);
+
+                          if (!mounted) return;
+                          Navigator.pop(context);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Note updated successfully'),
+                              backgroundColor: Colors.green,
+                            ),
+                          );
+                          widget.onRefresh();
+                        } catch (e) {
+                          if (!mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Error updating note: $e'),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: kPrimaryColor,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      child: const Text(
+                        'Save',
+                        style: TextStyle(color: Colors.white, fontSize: 15),
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-              child: const Text(
-                'Save',
-                style: TextStyle(color: Colors.white, fontSize: 15),
-              ),
-            ),
-          ],
-        ),
-      ),
+          ),
     );
   }
 
@@ -1801,100 +1934,121 @@ class _NoteItemState extends State<NoteItem>
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       context: context,
-      builder: (context) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (widget.isOwned)
-              _buildOption(context, Icons.edit, "Edit note", () {
-                Navigator.pop(context);
-                _showEditDialog(context);
-              }),
-            _buildOption(context, Icons.share, "Share", () {
-              Navigator.pop(context);
-              _shareNote();
-            }),
-            _buildOption(context, Icons.link, "Copy link", () async {
-              Navigator.pop(context);
+      builder:
+          (context) => Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (widget.isOwned)
+                  _buildOption(context, Icons.edit, "Edit note", () {
+                    Navigator.pop(context);
+                    _showEditDialog(context);
+                  }),
+                _buildOption(context, Icons.share, "Share", () {
+                  Navigator.pop(context);
+                  _shareNote();
+                }),
+                _buildOption(context, Icons.link, "Copy link", () async {
+                  Navigator.pop(context);
 
-              try {
-                final supabase = Supabase.instance.client;
+                  try {
+                    final supabase = Supabase.instance.client;
 
-                final uri = Uri.parse(widget.fileUrl);
-                final segments = uri.pathSegments;
+                    final uri = Uri.parse(widget.fileUrl);
+                    final segments = uri.pathSegments;
 
-                final bucketIndex = segments.indexOf('notes');
-                final storagePath = segments.sublist(bucketIndex + 1).join('/');
+                    final bucketIndex = segments.indexOf('notes');
+                    final storagePath = segments
+                        .sublist(bucketIndex + 1)
+                        .join('/');
 
-                final signedUrl = await supabase.storage
-                    .from('notes')
-                    .createSignedUrl(storagePath, 60 * 60); // 1 hour
+                    final signedUrl = await supabase.storage
+                        .from('notes')
+                        .createSignedUrl(storagePath, 60 * 60); // 1 hour
 
-                await Clipboard.setData(
-                  ClipboardData(text: signedUrl),
-                );
+                    await Clipboard.setData(ClipboardData(text: signedUrl));
 
-                if (!mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Secure link copied (1 hour valid)')),
-                );
-              } catch (e) {
-                if (!mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Failed to copy link: $e')),
-                );
-              }
-            }),
-            const Divider(color: Colors.grey),
-            if (widget.isOwned)
-              _buildOption(context, Icons.delete, "Remove", () {
-                Navigator.pop(context);
-                _showDeleteConfirmation(context);
-              }, isDestructive: true)
-            else
-              _buildOption(context, Icons.bookmark_remove_outlined, "Remove from saved", () {
-                Navigator.pop(context);
-                widget.onUnsave?.call();
-              }, isDestructive: true),
-          ],
-        ),
-      ),
+                    if (!mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Secure link copied (1 hour valid)'),
+                      ),
+                    );
+                  } catch (e) {
+                    if (!mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Failed to copy link: $e')),
+                    );
+                  }
+                }),
+                const Divider(color: Colors.grey),
+                if (widget.isOwned)
+                  _buildOption(context, Icons.delete, "Remove", () {
+                    Navigator.pop(context);
+                    _showDeleteConfirmation(context);
+                  }, isDestructive: true)
+                else
+                  _buildOption(
+                    context,
+                    Icons.bookmark_remove_outlined,
+                    "Remove from saved",
+                    () {
+                      Navigator.pop(context);
+                      widget.onUnsave?.call();
+                    },
+                    isDestructive: true,
+                  ),
+              ],
+            ),
+          ),
     );
   }
 
   void _showDeleteConfirmation(BuildContext context) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: kCardColor,
-        title: const Text(
-          'Delete Note',
-          style: TextStyle(color: Colors.white),
-        ),
-        content: const Text(
-          'Are you sure you want to delete this note? This note will be deleted permanently after 10 days.',
-          style: TextStyle(color: Colors.grey),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+      builder:
+          (context) => AlertDialog(
+            backgroundColor: kCardColor,
+            title: const Text(
+              'Delete Note',
+              style: TextStyle(color: Colors.white),
+            ),
+            content: const Text(
+              'Are you sure you want to delete this note? This note will be deleted permanently after 10 days.',
+              style: TextStyle(color: Colors.grey),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text(
+                  'Cancel',
+                  style: TextStyle(color: Colors.grey),
+                ),
+              ),
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  widget.onDelete();
+                },
+                child: const Text(
+                  'Delete',
+                  style: TextStyle(color: Colors.red),
+                ),
+              ),
+            ],
           ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              widget.onDelete();
-            },
-            child: const Text('Delete', style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
     );
   }
 
-  Widget _buildOption(BuildContext context, IconData icon, String label,
-      VoidCallback onTap, {bool isDestructive = false}) {
+  Widget _buildOption(
+    BuildContext context,
+    IconData icon,
+    String label,
+    VoidCallback onTap, {
+    bool isDestructive = false,
+  }) {
     return ListTile(
       leading: Icon(icon, color: isDestructive ? Colors.red : Colors.white),
       title: Text(
@@ -1925,38 +2079,34 @@ class _NoteItemState extends State<NoteItem>
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: widget.isSelected
-            ? kPrimaryColor.withOpacity(0.18)
-            : kCardColor,
+        color: widget.isSelected ? kPrimaryColor.withOpacity(0.18) : kCardColor,
         borderRadius: BorderRadius.circular(12),
-        border: widget.isSelected
-            ? Border.all(color: kPrimaryColor, width: 1.5)
-            : null,
+        border:
+            widget.isSelected
+                ? Border.all(color: kPrimaryColor, width: 1.5)
+                : null,
       ),
       child: Row(
         children: [
           SizedBox(
-          width: 40,
-          height: 40,
-          child: widget.isSelected
-              ? Icon(
-                  Icons.check_circle,
-                  color: kPrimaryColor,
-                  size: 32, 
-                )
-              : Container(
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF3C3C3E),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Icon(
-                    _getFileIcon(),
-                    color: Colors.white,
-                    size: 20,
-                  ),
-                ),
-        ),
+            width: 40,
+            height: 40,
+            child:
+                widget.isSelected
+                    ? Icon(Icons.check_circle, color: kPrimaryColor, size: 32)
+                    : Container(
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF3C3C3E),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(
+                        _getFileIcon(),
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                    ),
+          ),
 
           const SizedBox(width: 12),
           Expanded(
@@ -2031,7 +2181,11 @@ class _NoteItemState extends State<NoteItem>
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.lock_outline, size: 9, color: Colors.grey[400]),
+                            Icon(
+                              Icons.lock_outline,
+                              size: 9,
+                              color: Colors.grey[400],
+                            ),
                             const SizedBox(width: 3),
                             Text(
                               'Private',
@@ -2049,10 +2203,7 @@ class _NoteItemState extends State<NoteItem>
                 const SizedBox(height: 4),
                 Text(
                   widget.subtitle,
-                  style: const TextStyle(
-                    color: Colors.grey,
-                    fontSize: 14,
-                  ),
+                  style: const TextStyle(color: Colors.grey, fontSize: 14),
                 ),
               ],
             ),
@@ -2089,9 +2240,10 @@ class _NoteItemState extends State<NoteItem>
                             ),
                           ),
                         Transform.scale(
-                          scale: isFavorite && _animationController.isAnimating
-                              ? _scaleAnimation.value
-                              : 1.0,
+                          scale:
+                              isFavorite && _animationController.isAnimating
+                                  ? _scaleAnimation.value
+                                  : 1.0,
                           child: Icon(
                             isFavorite ? Icons.star : Icons.star_border,
                             color: isFavorite ? kAccentYellow : Colors.grey,
@@ -2111,20 +2263,17 @@ class _NoteItemState extends State<NoteItem>
             Material(
               color: Colors.transparent,
               child: InkWell(
-              borderRadius: BorderRadius.circular(50),
-              splashColor: Colors.white24,
-              highlightColor: Colors.white10,
-              onTap: widget.isSelected ? null : () => _showOptionsMenu(context),
-              child: const Padding(
-                padding: EdgeInsets.all(6),
-                child: Icon(
-                  Icons.more_vert,
-                  color: Colors.grey,
-                  size: 22,
+                borderRadius: BorderRadius.circular(50),
+                splashColor: Colors.white24,
+                highlightColor: Colors.white10,
+                onTap:
+                    widget.isSelected ? null : () => _showOptionsMenu(context),
+                child: const Padding(
+                  padding: EdgeInsets.all(6),
+                  child: Icon(Icons.more_vert, color: Colors.grey, size: 22),
                 ),
               ),
             ),
-          ),
         ],
       ),
     );

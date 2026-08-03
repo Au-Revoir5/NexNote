@@ -54,10 +54,7 @@ class _DocxMiniPreview extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            Color(0xFFE3F2FD),
-            Colors.white,
-          ],
+          colors: [Color(0xFFE3F2FD), Colors.white],
         ),
       ),
       child: Column(
@@ -111,9 +108,10 @@ class _Fallback extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: isPdf
-              ? [Colors.red.shade50, Colors.red.shade100]
-              : [Colors.blue.shade50, Colors.blue.shade100],
+          colors:
+              isPdf
+                  ? [Colors.red.shade50, Colors.red.shade100]
+                  : [Colors.blue.shade50, Colors.blue.shade100],
         ),
       ),
       child: Center(
