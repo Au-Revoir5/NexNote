@@ -1955,25 +1955,28 @@ class _FoldersPageState extends State<FoldersPage> {
                   else
                     InkWell(
                       borderRadius: BorderRadius.circular(20),
-                      onTap: () => showNoteOptionsMenu(
-                        context,
-                        noteId: noteId,
-                        title: note['title'] ?? 'Untitled',
-                        description: note['description'],
-                        fileUrl: note['file_url'] ?? '',
-                        fileType: note['file_type'],
-                        tags:
-                            note['tags'] != null
-                                ? List<String>.from(note['tags'])
-                                : [],
-                        isOwned: isOwned,
-                        isFavorite: _favoriteNoteIds.contains(noteId),
-                        onMoveToFolder: () => _moveThisNote(noteId),
-                        onRefresh: () {
-                          _loadFavorites();
-                          isOwned ? _loadOwnedNotes() : _loadCommunityNotes();
-                        },
-                      ),
+                      onTap:
+                          () => showNoteOptionsMenu(
+                            context,
+                            noteId: noteId,
+                            title: note['title'] ?? 'Untitled',
+                            description: note['description'],
+                            fileUrl: note['file_url'] ?? '',
+                            fileType: note['file_type'],
+                            tags:
+                                note['tags'] != null
+                                    ? List<String>.from(note['tags'])
+                                    : [],
+                            isOwned: isOwned,
+                            isFavorite: _favoriteNoteIds.contains(noteId),
+                            onMoveToFolder: () => _moveThisNote(noteId),
+                            onRefresh: () {
+                              _loadFavorites();
+                              isOwned
+                                  ? _loadOwnedNotes()
+                                  : _loadCommunityNotes();
+                            },
+                          ),
                       child: const Padding(
                         padding: EdgeInsets.all(4),
                         child: Icon(
