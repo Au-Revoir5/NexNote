@@ -502,102 +502,107 @@ class _NotesPageState extends State<NotesPage> {
           duration: const Duration(milliseconds: 160),
           child: Material(
             color: Colors.transparent,
-            child: SafeArea(
-              bottom: false,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-                constraints: const BoxConstraints(
-                  minHeight: kToolbarHeight,
-                ), // 56
-                decoration: BoxDecoration(
-                  color: kCardColor,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.25),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.arrow_back, color: Colors.white),
-                      splashRadius: 20,
-                      onPressed: () {
-                        HapticFeedback.lightImpact();
-                        _clearSelection();
-                      },
-                    ),
-                    Text(
-                      '${_selectedNoteIds.length}',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 17,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 0.2,
+            child: Container(
+              // Background/shadow now lives OUTSIDE the SafeArea so it
+              // extends underneath the status bar / notch instead of
+              // leaving a transparent gap there.
+              decoration: BoxDecoration(
+                color: kCardColor,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.25),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: SafeArea(
+                bottom: false,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  constraints: const BoxConstraints(
+                    minHeight: kToolbarHeight,
+                  ), // 56
+                  child: Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.arrow_back, color: Colors.white),
+                        splashRadius: 20,
+                        onPressed: () {
+                          HapticFeedback.lightImpact();
+                          _clearSelection();
+                        },
                       ),
-                    ),
-                    const SizedBox(width: 6),
-                    const Text(
-                      'Selected',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 17,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 0.2,
+                      Text(
+                        '${_selectedNoteIds.length}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 17,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0.2,
+                        ),
                       ),
-                    ),
-                    const Spacer(),
+                      const SizedBox(width: 6),
+                      const Text(
+                        'Selected',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 17,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0.2,
+                        ),
+                      ),
+                      const Spacer(),
 
-                    /// Move to folder
-                    IconButton(
-                      icon: const Icon(Icons.folder_open_outlined),
-                      color: Colors.white,
-                      splashRadius: 20,
-                      onPressed: () {
-                        _showMoveToFolderSheet();
-                      },
-                    ),
+                      /// Move to folder
+                      IconButton(
+                        icon: const Icon(Icons.folder_open_outlined),
+                        color: Colors.white,
+                        splashRadius: 20,
+                        onPressed: () {
+                          _showMoveToFolderSheet();
+                        },
+                      ),
 
-                    /// Delete
-                    IconButton(
-                      icon: const Icon(Icons.delete_outline),
-                      color: Colors.white,
-                      splashRadius: 20,
-                      onPressed: () {
-                        _confirmBatchDelete();
-                      },
-                    ),
+                      /// Delete
+                      IconButton(
+                        icon: const Icon(Icons.delete_outline),
+                        color: Colors.white,
+                        splashRadius: 20,
+                        onPressed: () {
+                          _confirmBatchDelete();
+                        },
+                      ),
 
-                    /// Select all
-                    IconButton(
-                      icon: const Icon(Icons.select_all),
-                      color: Colors.white,
-                      splashRadius: 20,
-                      onPressed: () {
-                        setState(() {
-                          _selectedNoteIds
-                            ..clear()
-                            ..addAll(
-                              _filteredRecentNotes.map(
-                                (n) => n['id'] as String,
-                              ),
-                            );
-                        });
-                      },
-                    ),
+                      /// Select all
+                      IconButton(
+                        icon: const Icon(Icons.select_all),
+                        color: Colors.white,
+                        splashRadius: 20,
+                        onPressed: () {
+                          setState(() {
+                            _selectedNoteIds
+                              ..clear()
+                              ..addAll(
+                                _filteredRecentNotes.map(
+                                  (n) => n['id'] as String,
+                                ),
+                              );
+                          });
+                        },
+                      ),
 
-                    /// More (triple dot)
-                    IconButton(
-                      icon: const Icon(Icons.more_vert, color: Colors.white),
-                      splashRadius: 20,
-                      onPressed: () {
-                        _showSelectionActionsBottomSheet();
-                      },
-                    ),
-                    const SizedBox(width: 4),
-                  ],
+                      /// More (triple dot)
+                      IconButton(
+                        icon: const Icon(Icons.more_vert, color: Colors.white),
+                        splashRadius: 20,
+                        onPressed: () {
+                          _showSelectionActionsBottomSheet();
+                        },
+                      ),
+                      const SizedBox(width: 4),
+                    ],
+                  ),
                 ),
               ),
             ),

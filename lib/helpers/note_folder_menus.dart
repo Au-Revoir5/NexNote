@@ -41,9 +41,9 @@ Future<void> toggleNoteFavorite(
     }
   } catch (e) {
     if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error updating favorite: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error updating favorite: $e')));
     }
     rethrow;
   }
@@ -75,7 +75,10 @@ Future<void> shareNote(
   }
 }
 
-Future<void> copyNoteLink(BuildContext context, {required String fileUrl}) async {
+Future<void> copyNoteLink(
+  BuildContext context, {
+  required String fileUrl,
+}) async {
   try {
     final supabase = Supabase.instance.client;
     final uri = Uri.parse(fileUrl);
@@ -112,10 +115,11 @@ Future<void> deleteNoteToTrash(
         .from('notes')
         .update({
           'deleted_at': DateTime.now().toUtc().toIso8601String(),
-          'delete_expires_at': DateTime.now()
-              .toUtc()
-              .add(const Duration(days: 10))
-              .toIso8601String(),
+          'delete_expires_at':
+              DateTime.now()
+                  .toUtc()
+                  .add(const Duration(days: 10))
+                  .toIso8601String(),
         })
         .eq('id', noteId)
         .eq('user_id', supabase.auth.currentUser!.id);
@@ -156,30 +160,37 @@ Future<void> unsaveNote(BuildContext context, {required String noteId}) async {
   }
 }
 
-void confirmDeleteNote(BuildContext context, {required VoidCallback onConfirmed}) {
+void confirmDeleteNote(
+  BuildContext context, {
+  required VoidCallback onConfirmed,
+}) {
   showDialog(
     context: context,
-    builder: (context) => AlertDialog(
-      backgroundColor: kCardColor,
-      title: const Text('Delete Note', style: TextStyle(color: Colors.white)),
-      content: const Text(
-        'Are you sure you want to delete this note? This note will be deleted permanently after 10 days.',
-        style: TextStyle(color: Colors.grey),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+    builder:
+        (context) => AlertDialog(
+          backgroundColor: kCardColor,
+          title: const Text(
+            'Delete Note',
+            style: TextStyle(color: Colors.white),
+          ),
+          content: const Text(
+            'Are you sure you want to delete this note? This note will be deleted permanently after 10 days.',
+            style: TextStyle(color: Colors.grey),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                onConfirmed();
+              },
+              child: const Text('Delete', style: TextStyle(color: Colors.red)),
+            ),
+          ],
         ),
-        TextButton(
-          onPressed: () {
-            Navigator.pop(context);
-            onConfirmed();
-          },
-          child: const Text('Delete', style: TextStyle(color: Colors.red)),
-        ),
-      ],
-    ),
   );
 }
 
@@ -236,329 +247,431 @@ void showEditNoteDialog(
   showDialog(
     context: context,
     barrierDismissible: !isSaving,
-    builder: (context) => StatefulBuilder(
-      builder: (context, setDialogState) {
-        Future<void> pickReplacementFile() async {
-          try {
-            final result = await FilePicker.platform.pickFiles(
-              type: FileType.custom,
-              allowedExtensions: ['pdf', 'docx'],
-            );
-            if (result != null && result.files.single.path != null) {
-              setDialogState(() {
-                selectedNewFile = File(result.files.single.path!);
-                selectedNewFileName = result.files.single.name;
-              });
-            }
-          } catch (e) {
-            if (!context.mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Error picking file: $e')),
-            );
-          }
-        }
-
-        Future<void> save() async {
-          if (titleController.text.trim().isEmpty) return;
-
-          setDialogState(() => isSaving = true);
-
-          try {
-            final updates = <String, dynamic>{
-              'title': titleController.text.trim(),
-              'description': descController.text.trim().isEmpty
-                  ? null
-                  : descController.text.trim(),
-              'tags': editableTags,
-              'updated_at': DateTime.now().toUtc().toIso8601String(),
-            };
-
-            String? oldStoragePath;
-
-            // If a replacement file was picked, upload it first and point
-            // the note at the new file. The old object is deleted only
-            // after the DB row updates successfully, so a failed update
-            // never leaves the note pointing at a missing file.
-            if (selectedNewFile != null) {
-              oldStoragePath = _storagePathFromUrl(fileUrl);
-              final uploaded = await _uploadReplacementFile(selectedNewFile!);
-              updates['file_url'] = uploaded.url;
-              updates['file_type'] = uploaded.ext;
-            }
-
-            await Supabase.instance.client
-                .from('notes')
-                .update(updates)
-                .eq('id', noteId);
-
-            if (selectedNewFile != null && oldStoragePath != null) {
+    builder:
+        (context) => StatefulBuilder(
+          builder: (context, setDialogState) {
+            Future<void> pickReplacementFile() async {
               try {
-                await Supabase.instance.client.storage
-                    .from('notes')
-                    .remove([oldStoragePath]);
-              } catch (_) {
-                // Old file cleanup is best-effort; the note itself already
-                // points at the new file, so this failing isn't critical.
+                final result = await FilePicker.platform.pickFiles(
+                  type: FileType.custom,
+                  allowedExtensions: ['pdf', 'docx'],
+                );
+                if (result != null && result.files.single.path != null) {
+                  setDialogState(() {
+                    selectedNewFile = File(result.files.single.path!);
+                    selectedNewFileName = result.files.single.name;
+                  });
+                }
+              } catch (e) {
+                if (!context.mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Error picking file: $e')),
+                );
               }
             }
 
-            // The cached thumbnail/preview is keyed by noteId and was built
-            // from the old file, so it's stale as soon as the file changes.
-            // Drop it here; the grid will regenerate one from the new file.
-            if (selectedNewFile != null) {
-              NoteThumbnailCache.remove(noteId);
+            Future<void> save() async {
+              if (titleController.text.trim().isEmpty) return;
+
+              setDialogState(() => isSaving = true);
+
+              try {
+                final updates = <String, dynamic>{
+                  'title': titleController.text.trim(),
+                  'description':
+                      descController.text.trim().isEmpty
+                          ? null
+                          : descController.text.trim(),
+                  'tags': editableTags,
+                  'updated_at': DateTime.now().toUtc().toIso8601String(),
+                };
+
+                String? oldStoragePath;
+
+                // If a replacement file was picked, upload it first and point
+                // the note at the new file. The old object is deleted only
+                // after the DB row updates successfully, so a failed update
+                // never leaves the note pointing at a missing file.
+                if (selectedNewFile != null) {
+                  oldStoragePath = _storagePathFromUrl(fileUrl);
+                  final uploaded = await _uploadReplacementFile(
+                    selectedNewFile!,
+                  );
+                  updates['file_url'] = uploaded.url;
+                  updates['file_type'] = uploaded.ext;
+                }
+
+                await Supabase.instance.client
+                    .from('notes')
+                    .update(updates)
+                    .eq('id', noteId);
+
+                if (selectedNewFile != null && oldStoragePath != null) {
+                  try {
+                    await Supabase.instance.client.storage.from('notes').remove(
+                      [oldStoragePath],
+                    );
+                  } catch (_) {
+                    // Old file cleanup is best-effort; the note itself already
+                    // points at the new file, so this failing isn't critical.
+                  }
+                }
+
+                // The cached thumbnail/preview is keyed by noteId and was built
+                // from the old file, so it's stale as soon as the file changes.
+                // Drop it here; the grid will regenerate one from the new file.
+                if (selectedNewFile != null) {
+                  NoteThumbnailCache.remove(noteId);
+                }
+
+                if (!context.mounted) return;
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Note updated successfully'),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+                onSaved();
+              } catch (e) {
+                setDialogState(() => isSaving = false);
+                if (!context.mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Error updating note: $e'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
             }
 
-            if (!context.mounted) return;
-            Navigator.pop(context);
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Note updated successfully'),
-                backgroundColor: Colors.green,
+            return AlertDialog(
+              backgroundColor: kCardColor,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
               ),
-            );
-            onSaved();
-          } catch (e) {
-            setDialogState(() => isSaving = false);
-            if (!context.mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Error updating note: $e'), backgroundColor: Colors.red),
-            );
-          }
-        }
-
-        return AlertDialog(
-          backgroundColor: kCardColor,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Text(
-            'Edit Note',
-            style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
-          ),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Title', style: TextStyle(color: Colors.grey, fontSize: 13)),
-                const SizedBox(height: 6),
-                Container(
-                  decoration: BoxDecoration(
-                    color: kDarkSurface,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: TextField(
-                    controller: titleController,
-                    enabled: !isSaving,
-                    style: const TextStyle(color: Colors.white, fontSize: 15),
-                    decoration: const InputDecoration(
-                      hintText: 'Enter title...',
-                      hintStyle: TextStyle(color: Colors.grey, fontSize: 14),
-                      border: InputBorder.none,
-                      contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                    ),
-                  ),
+              title: const Text(
+                'Edit Note',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
                 ),
-                const SizedBox(height: 16),
-                const Text('Description', style: TextStyle(color: Colors.grey, fontSize: 13)),
-                const SizedBox(height: 6),
-                Container(
-                  decoration: BoxDecoration(
-                    color: kDarkSurface,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: TextField(
-                    controller: descController,
-                    enabled: !isSaving,
-                    style: const TextStyle(color: Colors.white, fontSize: 15),
-                    maxLines: 3,
-                    decoration: const InputDecoration(
-                      hintText: 'Add a description...',
-                      hintStyle: TextStyle(color: Colors.grey, fontSize: 14),
-                      border: InputBorder.none,
-                      contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                const Text('Tags', style: TextStyle(color: Colors.grey, fontSize: 13)),
-                const SizedBox(height: 6),
-                Row(
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: kDarkSurface,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: TextField(
-                          controller: tagController,
-                          enabled: !isSaving,
-                          style: const TextStyle(color: Colors.white, fontSize: 15),
-                          decoration: const InputDecoration(
-                            hintText: 'Add a tag...',
-                            hintStyle: TextStyle(color: Colors.grey, fontSize: 14),
-                            border: InputBorder.none,
-                            contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                          ),
-                          onSubmitted: (value) {
-                            final trimmed = value.trim().toLowerCase();
-                            if (trimmed.isNotEmpty && !editableTags.contains(trimmed)) {
-                              setDialogState(() {
-                                editableTags.add(trimmed);
-                                tagController.clear();
-                              });
-                            }
-                          },
-                        ),
-                      ),
+                    const Text(
+                      'Title',
+                      style: TextStyle(color: Colors.grey, fontSize: 13),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(height: 6),
                     Container(
                       decoration: BoxDecoration(
-                        color: kPrimaryColor,
+                        color: kDarkSurface,
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      child: IconButton(
-                        icon: const Icon(Icons.add, color: Colors.white, size: 20),
-                        onPressed: isSaving
-                            ? null
-                            : () {
-                                final trimmed = tagController.text.trim().toLowerCase();
-                                if (trimmed.isNotEmpty && !editableTags.contains(trimmed)) {
+                      child: TextField(
+                        controller: titleController,
+                        enabled: !isSaving,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                        ),
+                        decoration: const InputDecoration(
+                          hintText: 'Enter title...',
+                          hintStyle: TextStyle(
+                            color: Colors.grey,
+                            fontSize: 14,
+                          ),
+                          border: InputBorder.none,
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 12,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Description',
+                      style: TextStyle(color: Colors.grey, fontSize: 13),
+                    ),
+                    const SizedBox(height: 6),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: kDarkSurface,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: TextField(
+                        controller: descController,
+                        enabled: !isSaving,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                        ),
+                        maxLines: 3,
+                        decoration: const InputDecoration(
+                          hintText: 'Add a description...',
+                          hintStyle: TextStyle(
+                            color: Colors.grey,
+                            fontSize: 14,
+                          ),
+                          border: InputBorder.none,
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 12,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Tags',
+                      style: TextStyle(color: Colors.grey, fontSize: 13),
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: kDarkSurface,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: TextField(
+                              controller: tagController,
+                              enabled: !isSaving,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 15,
+                              ),
+                              decoration: const InputDecoration(
+                                hintText: 'Add a tag...',
+                                hintStyle: TextStyle(
+                                  color: Colors.grey,
+                                  fontSize: 14,
+                                ),
+                                border: InputBorder.none,
+                                contentPadding: EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                  vertical: 12,
+                                ),
+                              ),
+                              onSubmitted: (value) {
+                                final trimmed = value.trim().toLowerCase();
+                                if (trimmed.isNotEmpty &&
+                                    !editableTags.contains(trimmed)) {
                                   setDialogState(() {
                                     editableTags.add(trimmed);
                                     tagController.clear();
                                   });
                                 }
                               },
-                        padding: const EdgeInsets.all(8),
-                        constraints: const BoxConstraints(),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                if (editableTags.isNotEmpty)
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 6,
-                    children: editableTags.map((tag) {
-                      return Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                        decoration: BoxDecoration(
-                          color: kDarkSurface,
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: kPrimaryColor.withOpacity(0.3), width: 1),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              tag,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w400,
-                              ),
                             ),
-                            const SizedBox(width: 6),
-                            GestureDetector(
-                              onTap: isSaving
-                                  ? null
-                                  : () => setDialogState(() => editableTags.remove(tag)),
-                              child: Icon(Icons.close, color: Colors.grey[400], size: 14),
-                            ),
-                          ],
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                const SizedBox(height: 16),
-                const Text('File', style: TextStyle(color: Colors.grey, fontSize: 13)),
-                const SizedBox(height: 6),
-                GestureDetector(
-                  onTap: isSaving ? null : pickReplacementFile,
-                  child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: kDarkSurface,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: selectedNewFile != null
-                            ? kPrimaryColor
-                            : Colors.grey.withOpacity(0.3),
-                        width: 1.2,
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          selectedNewFile != null ? Icons.check_circle : Icons.upload_file,
-                          color: selectedNewFile != null ? kPrimaryColor : Colors.grey,
-                          size: 22,
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            selectedNewFile != null
-                                ? selectedNewFileName ?? 'New file selected'
-                                : 'Replace file (current: ${(fileType ?? '').toUpperCase()})',
-                            style: TextStyle(
-                              color: selectedNewFile != null ? Colors.white : Colors.grey,
-                              fontSize: 13,
-                            ),
-                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        if (selectedNewFile != null)
-                          GestureDetector(
-                            onTap: isSaving
-                                ? null
-                                : () => setDialogState(() {
-                                      selectedNewFile = null;
-                                      selectedNewFileName = null;
-                                    }),
-                            child: Icon(Icons.close, color: Colors.grey[400], size: 18),
+                        const SizedBox(width: 8),
+                        Container(
+                          decoration: BoxDecoration(
+                            color: kPrimaryColor,
+                            borderRadius: BorderRadius.circular(10),
                           ),
+                          child: IconButton(
+                            icon: const Icon(
+                              Icons.add,
+                              color: Colors.white,
+                              size: 20,
+                            ),
+                            onPressed:
+                                isSaving
+                                    ? null
+                                    : () {
+                                      final trimmed =
+                                          tagController.text
+                                              .trim()
+                                              .toLowerCase();
+                                      if (trimmed.isNotEmpty &&
+                                          !editableTags.contains(trimmed)) {
+                                        setDialogState(() {
+                                          editableTags.add(trimmed);
+                                          tagController.clear();
+                                        });
+                                      }
+                                    },
+                            padding: const EdgeInsets.all(8),
+                            constraints: const BoxConstraints(),
+                          ),
+                        ),
                       ],
                     ),
+                    const SizedBox(height: 12),
+                    if (editableTags.isNotEmpty)
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children:
+                            editableTags.map((tag) {
+                              return Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 5,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: kDarkSurface,
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(
+                                    color: kPrimaryColor.withOpacity(0.3),
+                                    width: 1,
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      tag,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w400,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    GestureDetector(
+                                      onTap:
+                                          isSaving
+                                              ? null
+                                              : () => setDialogState(
+                                                () => editableTags.remove(tag),
+                                              ),
+                                      child: Icon(
+                                        Icons.close,
+                                        color: Colors.grey[400],
+                                        size: 14,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }).toList(),
+                      ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'File',
+                      style: TextStyle(color: Colors.grey, fontSize: 13),
+                    ),
+                    const SizedBox(height: 6),
+                    GestureDetector(
+                      onTap: isSaving ? null : pickReplacementFile,
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: kDarkSurface,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color:
+                                selectedNewFile != null
+                                    ? kPrimaryColor
+                                    : Colors.grey.withOpacity(0.3),
+                            width: 1.2,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              selectedNewFile != null
+                                  ? Icons.check_circle
+                                  : Icons.upload_file,
+                              color:
+                                  selectedNewFile != null
+                                      ? kPrimaryColor
+                                      : Colors.grey,
+                              size: 22,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                selectedNewFile != null
+                                    ? selectedNewFileName ?? 'New file selected'
+                                    : 'Replace file (current: ${(fileType ?? '').toUpperCase()})',
+                                style: TextStyle(
+                                  color:
+                                      selectedNewFile != null
+                                          ? Colors.white
+                                          : Colors.grey,
+                                  fontSize: 13,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            if (selectedNewFile != null)
+                              GestureDetector(
+                                onTap:
+                                    isSaving
+                                        ? null
+                                        : () => setDialogState(() {
+                                          selectedNewFile = null;
+                                          selectedNewFileName = null;
+                                        }),
+                                child: Icon(
+                                  Icons.close,
+                                  color: Colors.grey[400],
+                                  size: 18,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    if (selectedNewFile != null) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        'Saving will replace the existing file (PDF/DOCX only).',
+                        style: TextStyle(color: Colors.grey[500], fontSize: 11),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isSaving ? null : () => Navigator.pop(context),
+                  child: const Text(
+                    'Cancel',
+                    style: TextStyle(color: Colors.grey, fontSize: 15),
                   ),
                 ),
-                if (selectedNewFile != null) ...[
-                  const SizedBox(height: 6),
-                  Text(
-                    'Saving will replace the existing file (PDF/DOCX only).',
-                    style: TextStyle(color: Colors.grey[500], fontSize: 11),
+                ElevatedButton(
+                  onPressed: isSaving ? null : save,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: kPrimaryColor,
+                    disabledBackgroundColor: kPrimaryColor.withOpacity(0.5),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                   ),
-                ],
+                  child:
+                      isSaving
+                          ? const SizedBox(
+                            height: 16,
+                            width: 16,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
+                            ),
+                          )
+                          : const Text(
+                            'Save',
+                            style: TextStyle(color: Colors.white, fontSize: 15),
+                          ),
+                ),
               ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: isSaving ? null : () => Navigator.pop(context),
-              child: const Text('Cancel', style: TextStyle(color: Colors.grey, fontSize: 15)),
-            ),
-            ElevatedButton(
-              onPressed: isSaving ? null : save,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: kPrimaryColor,
-                disabledBackgroundColor: kPrimaryColor.withOpacity(0.5),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-              child: isSaving
-                  ? const SizedBox(
-                      height: 16,
-                      width: 16,
-                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                    )
-                  : const Text('Save', style: TextStyle(color: Colors.white, fontSize: 15)),
-            ),
-          ],
-        );
-      },
-    ),
+            );
+          },
+        ),
   );
 }
 
@@ -638,7 +751,11 @@ Future<void> showNoteOptionsMenu(
                 onTap: () async {
                   Navigator.pop(context);
                   try {
-                    await toggleNoteFavorite(context, noteId: noteId, isFavorite: isFavorite);
+                    await toggleNoteFavorite(
+                      context,
+                      noteId: noteId,
+                      isFavorite: isFavorite,
+                    );
                     onRefresh();
                   } catch (_) {}
                 },
@@ -725,59 +842,68 @@ void showRenameFolderDialog(
   final controller = TextEditingController(text: currentName);
   showDialog(
     context: context,
-    builder: (context) => AlertDialog(
-      backgroundColor: kCardColor,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      title: const Text('Rename Folder', style: TextStyle(color: Colors.white)),
-      content: TextField(
-        controller: controller,
-        autofocus: true,
-        style: const TextStyle(color: Colors.white),
-        decoration: InputDecoration(
-          hintText: 'Folder name',
-          hintStyle: const TextStyle(color: Colors.grey),
-          filled: true,
-          fillColor: kDarkSurface,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(10),
-            borderSide: BorderSide.none,
+    builder:
+        (context) => AlertDialog(
+          backgroundColor: kCardColor,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
           ),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          title: const Text(
+            'Rename Folder',
+            style: TextStyle(color: Colors.white),
+          ),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            style: const TextStyle(color: Colors.white),
+            decoration: InputDecoration(
+              hintText: 'Folder name',
+              hintStyle: const TextStyle(color: Colors.grey),
+              filled: true,
+              fillColor: kDarkSurface,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide.none,
+              ),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 14,
+                vertical: 12,
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+            ),
+            TextButton(
+              onPressed: () async {
+                final name = controller.text.trim();
+                if (name.isEmpty) return;
+                Navigator.pop(context);
+                final user = Supabase.instance.client.auth.currentUser;
+                if (user == null) return;
+                try {
+                  await Supabase.instance.client
+                      .from('folders')
+                      .update({
+                        'name': name,
+                        'updated_at': DateTime.now().toUtc().toIso8601String(),
+                      })
+                      .eq('id', folderId)
+                      .eq('user_id', user.id);
+                  onRenamed();
+                } catch (e) {
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Failed to rename folder: $e')),
+                  );
+                }
+              },
+              child: const Text('Save', style: TextStyle(color: kPrimaryColor)),
+            ),
+          ],
         ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
-        ),
-        TextButton(
-          onPressed: () async {
-            final name = controller.text.trim();
-            if (name.isEmpty) return;
-            Navigator.pop(context);
-            final user = Supabase.instance.client.auth.currentUser;
-            if (user == null) return;
-            try {
-              await Supabase.instance.client
-                  .from('folders')
-                  .update({
-                    'name': name,
-                    'updated_at': DateTime.now().toUtc().toIso8601String(),
-                  })
-                  .eq('id', folderId)
-                  .eq('user_id', user.id);
-              onRenamed();
-            } catch (e) {
-              if (!context.mounted) return;
-              ScaffoldMessenger.of(
-                context,
-              ).showSnackBar(SnackBar(content: Text('Failed to rename folder: $e')));
-            }
-          },
-          child: const Text('Save', style: TextStyle(color: kPrimaryColor)),
-        ),
-      ],
-    ),
   );
 }
 
@@ -789,46 +915,50 @@ void confirmDeleteFolder(
 }) {
   showDialog(
     context: context,
-    builder: (context) => AlertDialog(
-      backgroundColor: kCardColor,
-      title: const Text('Delete Folder', style: TextStyle(color: Colors.white)),
-      content: Text(
-        'Delete "$folderName"? Subfolders will also be deleted. Notes inside (owned or saved) will become unfiled, not deleted.',
-        style: const TextStyle(color: Colors.grey),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+    builder:
+        (context) => AlertDialog(
+          backgroundColor: kCardColor,
+          title: const Text(
+            'Delete Folder',
+            style: TextStyle(color: Colors.white),
+          ),
+          content: Text(
+            'Delete "$folderName"? Subfolders will also be deleted. Notes inside (owned or saved) will become unfiled, not deleted.',
+            style: const TextStyle(color: Colors.grey),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+            ),
+            TextButton(
+              onPressed: () async {
+                Navigator.pop(context);
+                final user = Supabase.instance.client.auth.currentUser;
+                if (user == null) return;
+                try {
+                  await Supabase.instance.client
+                      .from('folders')
+                      .delete()
+                      .eq('id', folderId)
+                      .eq('user_id', user.id);
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Folder deleted')),
+                    );
+                  }
+                  onDeleted();
+                } catch (e) {
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Failed to delete folder: $e')),
+                  );
+                }
+              },
+              child: const Text('Delete', style: TextStyle(color: Colors.red)),
+            ),
+          ],
         ),
-        TextButton(
-          onPressed: () async {
-            Navigator.pop(context);
-            final user = Supabase.instance.client.auth.currentUser;
-            if (user == null) return;
-            try {
-              await Supabase.instance.client
-                  .from('folders')
-                  .delete()
-                  .eq('id', folderId)
-                  .eq('user_id', user.id);
-              if (context.mounted) {
-                ScaffoldMessenger.of(
-                  context,
-                ).showSnackBar(const SnackBar(content: Text('Folder deleted')));
-              }
-              onDeleted();
-            } catch (e) {
-              if (!context.mounted) return;
-              ScaffoldMessenger.of(
-                context,
-              ).showSnackBar(SnackBar(content: Text('Failed to delete folder: $e')));
-            }
-          },
-          child: const Text('Delete', style: TextStyle(color: Colors.red)),
-        ),
-      ],
-    ),
   );
 }
 
@@ -848,43 +978,44 @@ void showFolderOptionsMenu(
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
     ),
-    builder: (context) => Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _sheetAction(
-            context,
-            icon: Icons.drive_file_rename_outline,
-            label: 'Rename',
-            onTap: () {
-              Navigator.pop(context);
-              showRenameFolderDialog(
+    builder:
+        (context) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _sheetAction(
                 context,
-                folderId: folderId,
-                currentName: folderName,
-                onRenamed: onRenamed,
-              );
-            },
-          ),
-          const Divider(),
-          _sheetAction(
-            context,
-            icon: Icons.delete_outline,
-            label: 'Delete folder',
-            isDestructive: true,
-            onTap: () {
-              Navigator.pop(context);
-              confirmDeleteFolder(
+                icon: Icons.drive_file_rename_outline,
+                label: 'Rename',
+                onTap: () {
+                  Navigator.pop(context);
+                  showRenameFolderDialog(
+                    context,
+                    folderId: folderId,
+                    currentName: folderName,
+                    onRenamed: onRenamed,
+                  );
+                },
+              ),
+              const Divider(),
+              _sheetAction(
                 context,
-                folderId: folderId,
-                folderName: folderName,
-                onDeleted: onDeleted,
-              );
-            },
+                icon: Icons.delete_outline,
+                label: 'Delete folder',
+                isDestructive: true,
+                onTap: () {
+                  Navigator.pop(context);
+                  confirmDeleteFolder(
+                    context,
+                    folderId: folderId,
+                    folderName: folderName,
+                    onDeleted: onDeleted,
+                  );
+                },
+              ),
+            ],
           ),
-        ],
-      ),
-    ),
+        ),
   );
 }
