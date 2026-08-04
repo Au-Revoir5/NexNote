@@ -2,11 +2,12 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../helpers/file_opener.dart';
+import 'package:nexnote/helpers/file_opener.dart';
 import '../helpers/thumbnail/note_thumbnail.dart';
 import '../helpers/thumbnail/note_thumbnail_cache.dart';
 import '../helpers/thumbnail/note_thumbnail_generator.dart';
 import '../main/add.dart' show AddNotePage;
+import '../helpers/note_folder_menus.dart';
 import '../main/my_notes.dart'; // NoteItem widget + shared color constants (kPrimaryColor, etc.)
 
 /// Unified Drive-style browsing page: folders + your own notes + notes
@@ -48,6 +49,7 @@ class _FolderNoteThumbnailWithCache extends StatefulWidget {
   final String fileType;
 
   const _FolderNoteThumbnailWithCache({
+    super.key,
     required this.noteId,
     required this.fileUrl,
     required this.fileType,
@@ -67,6 +69,20 @@ class _FolderNoteThumbnailWithCacheState
   void initState() {
     super.initState();
     _load();
+  }
+
+  @override
+  void didUpdateWidget(covariant _FolderNoteThumbnailWithCache oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Belt-and-suspenders: even though this widget is now keyed by fileUrl
+    // (so a changed file gets a brand-new State via initState), also guard
+    // here in case a caller ever renders it without that key.
+    if (oldWidget.fileUrl != widget.fileUrl ||
+        oldWidget.fileType != widget.fileType) {
+      _pdf = null;
+      _docx = null;
+      _load();
+    }
   }
 
   Future<void> _load() async {
@@ -217,99 +233,6 @@ class _FoldersPageState extends State<FoldersPage> {
     } catch (_) {
       // Non-critical - stars just won't reflect correctly until next load.
     }
-  }
-
-  void _showNoteOptionsMenu(Map<String, dynamic> note) {
-    final noteId = note['id'] as String;
-    final isOwned = note['is_owned'] == true;
-    final isFavorite = _favoriteNoteIds.contains(noteId);
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: kCardColor,
-      useSafeArea: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (context) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const SizedBox(height: 8),
-              _buildBottomSheetAction(
-                icon: Icons.star_border,
-                label: isFavorite ? 'Remove from starred' : 'Add to starred',
-                onTap: () async {
-                  Navigator.pop(context);
-                  final user = _supabase.auth.currentUser;
-                  if (user == null) return;
-                  try {
-                    if (isFavorite) {
-                      await _supabase
-                          .from('favorites')
-                          .delete()
-                          .eq('user_id', user.id)
-                          .eq('note_id', noteId);
-                    } else {
-                      await _supabase.from('favorites').upsert({
-                        'user_id': user.id,
-                        'note_id': noteId,
-                      }, onConflict: 'user_id,note_id');
-                    }
-                    await _loadFavorites();
-                  } catch (e) {
-                    if (!mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Failed to update starred: $e')),
-                    );
-                  }
-                },
-              ),
-              _buildBottomSheetAction(
-                icon: Icons.folder_open_outlined,
-                label: 'Move to folder',
-                onTap: () {
-                  Navigator.pop(context);
-                  // Reuse the existing move sheet by targeting just this
-                  // note, without ever flipping on selection mode.
-                  setState(
-                    () =>
-                        _selectedNoteIds
-                          ..clear()
-                          ..add(noteId),
-                  );
-                  _showMoveToFolderSheet().then(
-                    (_) => _selectedNoteIds.clear(),
-                  );
-                },
-              ),
-              if (isOwned)
-                _buildBottomSheetAction(
-                  icon: Icons.delete_outline,
-                  label: 'Delete',
-                  isDestructive: true,
-                  onTap: () {
-                    Navigator.pop(context);
-                    _deleteNote(noteId);
-                  },
-                )
-              else
-                _buildBottomSheetAction(
-                  icon: Icons.remove_circle_outline,
-                  label: 'Unsave',
-                  isDestructive: true,
-                  onTap: () {
-                    Navigator.pop(context);
-                    _unsaveNote(noteId);
-                  },
-                ),
-              const SizedBox(height: 12),
-            ],
-          ),
-        );
-      },
-    );
   }
 
   Future<void> _loadOwnedNotes() async {
@@ -836,186 +759,21 @@ class _FoldersPageState extends State<FoldersPage> {
     }
   }
 
-  void _showRenameFolderDialog(Map<String, dynamic> folder) {
-    final controller = TextEditingController(text: folder['name']);
-    showDialog(
-      context: context,
-      builder:
-          (context) => AlertDialog(
-            backgroundColor: kCardColor,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            title: const Text(
-              'Rename Folder',
-              style: TextStyle(color: Colors.white),
-            ),
-            content: TextField(
-              controller: controller,
-              autofocus: true,
-              style: const TextStyle(color: Colors.white),
-              decoration: InputDecoration(
-                hintText: 'Folder name',
-                hintStyle: const TextStyle(color: Colors.grey),
-                filled: true,
-                fillColor: kDarkSurface,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: BorderSide.none,
-                ),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 12,
-                ),
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text(
-                  'Cancel',
-                  style: TextStyle(color: Colors.grey),
-                ),
-              ),
-              TextButton(
-                onPressed: () async {
-                  final name = controller.text.trim();
-                  if (name.isEmpty) return;
-                  Navigator.pop(context);
-                  await _renameFolder(folder['id'], name);
-                },
-                child: const Text(
-                  'Save',
-                  style: TextStyle(color: kPrimaryColor),
-                ),
-              ),
-            ],
-          ),
-    );
-  }
-
-  Future<void> _renameFolder(String folderId, String newName) async {
-    final user = _supabase.auth.currentUser;
-    if (user == null) return;
-
-    try {
-      await _supabase
-          .from('folders')
-          .update({
-            'name': newName,
-            'updated_at': DateTime.now().toUtc().toIso8601String(),
-          })
-          .eq('id', folderId)
-          .eq('user_id', user.id);
-      _loadFolders();
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Failed to rename folder: $e')));
-    }
-  }
-
-  void _confirmDeleteFolder(Map<String, dynamic> folder) {
-    showDialog(
-      context: context,
-      builder:
-          (context) => AlertDialog(
-            backgroundColor: kCardColor,
-            title: const Text(
-              'Delete Folder',
-              style: TextStyle(color: Colors.white),
-            ),
-            content: Text(
-              'Delete "${folder['name']}"? Subfolders will also be deleted. Notes inside (owned or saved) will become unfiled, not deleted.',
-              style: const TextStyle(color: Colors.grey),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text(
-                  'Cancel',
-                  style: TextStyle(color: Colors.grey),
-                ),
-              ),
-              TextButton(
-                onPressed: () async {
-                  Navigator.pop(context);
-                  await _deleteFolder(folder['id']);
-                },
-                child: const Text(
-                  'Delete',
-                  style: TextStyle(color: Colors.red),
-                ),
-              ),
-            ],
-          ),
-    );
-  }
-
-  Future<void> _deleteFolder(String folderId) async {
-    final user = _supabase.auth.currentUser;
-    if (user == null) return;
-
-    try {
-      await _supabase
-          .from('folders')
-          .delete()
-          .eq('id', folderId)
-          .eq('user_id', user.id);
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Folder deleted')));
-      // Notes that were inside (owned or saved) may have had their
-      // folder_id cleared server-side, so refresh both, not just the
-      // folder tree.
-      _loadFolders();
-      _loadOwnedNotes();
-      _loadCommunityNotes();
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Failed to delete folder: $e')));
-    }
-  }
+  // ---------------------------------------------------------------------
+  // FOLDER OPTIONS (shared menu)
+  // ---------------------------------------------------------------------
 
   void _showFolderOptionsMenu(Map<String, dynamic> folder) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: kCardColor,
-      useSafeArea: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder:
-          (context) => Padding(
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _buildBottomSheetAction(
-                  icon: Icons.drive_file_rename_outline,
-                  label: 'Rename',
-                  onTap: () {
-                    Navigator.pop(context);
-                    _showRenameFolderDialog(folder);
-                  },
-                ),
-                const Divider(),
-                _buildBottomSheetAction(
-                  icon: Icons.delete_outline,
-                  label: 'Delete folder',
-                  isDestructive: true,
-                  onTap: () {
-                    Navigator.pop(context);
-                    _confirmDeleteFolder(folder);
-                  },
-                ),
-              ],
-            ),
-          ),
+    showFolderOptionsMenu(
+      context,
+      folderId: folder['id'] as String,
+      folderName: folder['name'] ?? 'Untitled folder',
+      onRenamed: _loadFolders,
+      onDeleted: () {
+        _loadFolders();
+        _loadOwnedNotes();
+        _loadCommunityNotes();
+      },
     );
   }
 
@@ -1771,41 +1529,6 @@ class _FoldersPageState extends State<FoldersPage> {
     );
   }
 
-  Widget _buildBreadcrumb() {
-    if (_folderPath.isEmpty) return const SizedBox.shrink();
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: [
-          for (int i = 0; i < _folderPath.length; i++) ...[
-            if (i != 0)
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 6),
-                child: Icon(Icons.chevron_right, color: Colors.grey, size: 16),
-              ),
-            GestureDetector(
-              onTap: () => _navigateToBreadcrumb(i),
-              child: Text(
-                _folderPath[i]['name'],
-                style: TextStyle(
-                  color:
-                      i == _folderPath.length - 1
-                          ? Colors.white
-                          : kPrimaryColor,
-                  fontSize: 14,
-                  fontWeight:
-                      i == _folderPath.length - 1
-                          ? FontWeight.w600
-                          : FontWeight.normal,
-                ),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
   // ---------------------------------------------------------------------
   // SORT / VIEW CONTROLS
   // ---------------------------------------------------------------------
@@ -1896,6 +1619,16 @@ class _FoldersPageState extends State<FoldersPage> {
   // it's one continuous list, like Drive. Same rendering applies whether
   // you're browsing a folder normally or looking at search results.
   // ---------------------------------------------------------------------
+
+  void _moveThisNote(String noteId) {
+    setState(
+      () =>
+          _selectedNoteIds
+            ..clear()
+            ..add(noteId),
+    );
+    _showMoveToFolderSheet().then((_) => _selectedNoteIds.clear());
+  }
 
   Widget _buildFolderTile(Map<String, dynamic> folder) {
     final folderId = folder['id'] as String;
@@ -2004,6 +1737,7 @@ class _FoldersPageState extends State<FoldersPage> {
           isSelected: isSelected,
           onDelete: () {},
           onUnsave: () => _unsaveNote(noteId),
+          onMoveToFolder: () => _moveThisNote(noteId),
           onRefresh: _loadCommunityNotes,
         ),
       );
@@ -2027,6 +1761,7 @@ class _FoldersPageState extends State<FoldersPage> {
         isFavorite: isFavorite,
         isSelected: isSelected,
         onDelete: () => _deleteNote(noteId),
+        onMoveToFolder: () => _moveThisNote(noteId),
         onRefresh: _loadOwnedNotes,
       ),
     );
@@ -2056,47 +1791,20 @@ class _FoldersPageState extends State<FoldersPage> {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (isSelected)
-                    Container(
-                      width: 30,
-                      height: 30,
-                      alignment: Alignment.center,
-                      decoration: const BoxDecoration(
-                        color: kPrimaryColor,
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.check,
-                        color: Colors.white,
-                        size: 16,
-                      ),
-                    )
-                  else if (_selectionMode)
-                    Container(
-                      width: 30,
-                      height: 30,
-                      alignment: Alignment.center,
-                      child: const Icon(
-                        Icons.radio_button_unchecked,
-                        color: Colors.grey,
-                        size: 18,
-                      ),
-                    )
-                  else
-                    Container(
-                      width: 30,
-                      height: 30,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF3C3C3E),
-                        borderRadius: BorderRadius.circular(7),
-                      ),
-                      child: const Icon(
-                        Icons.folder,
-                        color: kAccentYellow,
-                        size: 16,
-                      ),
+                  Container(
+                    width: 30,
+                    height: 30,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF3C3C3E),
+                      borderRadius: BorderRadius.circular(7),
                     ),
+                    child: const Icon(
+                      Icons.folder,
+                      color: kAccentYellow,
+                      size: 16,
+                    ),
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -2111,7 +1819,18 @@ class _FoldersPageState extends State<FoldersPage> {
                       ),
                     ),
                   ),
-                  if (!_selectionMode)
+                  if (_selectionMode)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 4, top: 2),
+                      child: Icon(
+                        isSelected
+                            ? Icons.check_circle
+                            : Icons.radio_button_unchecked,
+                        color: isSelected ? kPrimaryColor : Colors.grey,
+                        size: 20,
+                      ),
+                    )
+                  else
                     InkWell(
                       borderRadius: BorderRadius.circular(20),
                       onTap: () => _showFolderOptionsMenu(folder),
@@ -2159,6 +1878,7 @@ class _FoldersPageState extends State<FoldersPage> {
     final noteId = note['id'] as String;
     final isOwned = note['is_owned'] == true;
     final isSelected = _selectedNoteIds.contains(noteId);
+    final fileUrl = (note['file_url'] ?? '').toString();
     final fileType = (note['file_type'] ?? '').toString();
     final openNote = () {
       FileOpener.openFile(
@@ -2186,8 +1906,8 @@ class _FoldersPageState extends State<FoldersPage> {
           children: [
             // Header: file-type icon, title (up to 2 lines), then either a
             // selection indicator (in selection mode) or a per-note kebab
-            // menu that opens the same actions sheet used for batch
-            // selection - it just pre-selects this one note first.
+            // menu - now the single shared note-options sheet, so this
+            // matches NoteItem's list-tile kebab exactly.
             Padding(
               padding: const EdgeInsets.fromLTRB(10, 10, 4, 6),
               child: Row(
@@ -2235,7 +1955,25 @@ class _FoldersPageState extends State<FoldersPage> {
                   else
                     InkWell(
                       borderRadius: BorderRadius.circular(20),
-                      onTap: () => _showNoteOptionsMenu(note),
+                      onTap: () => showNoteOptionsMenu(
+                        context,
+                        noteId: noteId,
+                        title: note['title'] ?? 'Untitled',
+                        description: note['description'],
+                        fileUrl: note['file_url'] ?? '',
+                        fileType: note['file_type'],
+                        tags:
+                            note['tags'] != null
+                                ? List<String>.from(note['tags'])
+                                : [],
+                        isOwned: isOwned,
+                        isFavorite: _favoriteNoteIds.contains(noteId),
+                        onMoveToFolder: () => _moveThisNote(noteId),
+                        onRefresh: () {
+                          _loadFavorites();
+                          isOwned ? _loadOwnedNotes() : _loadCommunityNotes();
+                        },
+                      ),
                       child: const Padding(
                         padding: EdgeInsets.all(4),
                         child: Icon(
@@ -2261,8 +1999,14 @@ class _FoldersPageState extends State<FoldersPage> {
                     children: [
                       Container(color: Colors.white.withOpacity(0.04)),
                       _FolderNoteThumbnailWithCache(
+                        // Keying by fileUrl (not just noteId) forces a fresh
+                        // State - and therefore a fresh _load() - whenever a
+                        // note's file is replaced, instead of Flutter
+                        // reusing the old State that already has stale
+                        // pdf/docx bytes loaded from the previous file.
+                        key: ValueKey('thumb_${noteId}_$fileUrl'),
                         noteId: noteId,
-                        fileUrl: note['file_url'] ?? '',
+                        fileUrl: fileUrl,
                         fileType: fileType,
                       ),
                       if (!isOwned)
@@ -2449,12 +2193,6 @@ class _FoldersPageState extends State<FoldersPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    if (!_selectionMode &&
-                        !_isSearching &&
-                        _folderPath.isNotEmpty) ...[
-                      _buildBreadcrumb(),
-                      const SizedBox(height: 12),
-                    ],
                     _buildSortAndViewControls(),
                     const SizedBox(height: 12),
                     _buildContentList(),
