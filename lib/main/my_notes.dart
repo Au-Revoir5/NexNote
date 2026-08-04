@@ -4,8 +4,8 @@ import '../side/favorites.dart';
 import '../side/trash.dart';
 import 'package:nexnote/helpers/file_opener.dart';
 import 'add.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:flutter/services.dart';
+import '../helpers/note_folder_menus.dart';
 import '../side/All_notes.dart';
 
 const kPrimaryColor = Color(0xFF6366F1);
@@ -244,6 +244,23 @@ class _NotesPageState extends State<NotesPage> {
         context,
       ).showSnackBar(SnackBar(content: Text('Error loading folders: $e')));
     }
+  }
+
+  // ---------------------------------------------------------------------
+  // FOLDER OPTIONS (shared menu)
+  // ---------------------------------------------------------------------
+
+  void _showFolderOptionsMenu(Map<String, dynamic> folder) {
+    showFolderOptionsMenu(
+      context,
+      folderId: folder['id'] as String,
+      folderName: folder['name'] ?? 'Untitled folder',
+      onRenamed: _loadRecentFolders,
+      onDeleted: () {
+        _loadRecentFolders();
+        _loadRecentNotes();
+      },
+    );
   }
 
   // ---------------------------------------------------------------------
@@ -973,7 +990,8 @@ class _NotesPageState extends State<NotesPage> {
 
   // ---------------------------------------------------------------------
   // FOLDER GRID TILE: dashboard preview keeps the original 2-column grid
-  // look for folders, separate from the notes list below it.
+  // look for folders, separate from the notes list below it. Now includes
+  // a kebab menu (Rename / Delete), matching FoldersPage's folder tiles.
   // ---------------------------------------------------------------------
 
   Widget _buildFolderGridTile(Map<String, dynamic> folder) {
@@ -991,7 +1009,7 @@ class _NotesPageState extends State<NotesPage> {
         });
       },
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12),
+        padding: const EdgeInsets.only(left: 12, right: 4),
         decoration: BoxDecoration(
           color: kCardColor,
           borderRadius: BorderRadius.circular(10),
@@ -1008,6 +1026,14 @@ class _NotesPageState extends State<NotesPage> {
                 style: const TextStyle(color: Colors.white, fontSize: 14),
               ),
             ),
+            InkWell(
+              borderRadius: BorderRadius.circular(20),
+              onTap: () => _showFolderOptionsMenu(folder),
+              child: const Padding(
+                padding: EdgeInsets.all(6),
+                child: Icon(Icons.more_vert, color: Colors.grey, size: 18),
+              ),
+            ),
           ],
         ),
       ),
@@ -1022,6 +1048,16 @@ class _NotesPageState extends State<NotesPage> {
     final noteId = note['id'] as String;
     final isOwned = note['is_owned'] == true;
     final isSelected = _selectedNoteIds.contains(noteId);
+
+    void moveThisNote() {
+      setState(
+        () =>
+            _selectedNoteIds
+              ..clear()
+              ..add(noteId),
+      );
+      _showMoveToFolderSheet().then((_) => _selectedNoteIds.clear());
+    }
 
     if (!isOwned) {
       // Community / saved note: selection + folder-move are supported, but
@@ -1054,6 +1090,7 @@ class _NotesPageState extends State<NotesPage> {
           isSelected: isSelected,
           onDelete: () {},
           onUnsave: () => _unsaveNote(noteId),
+          onMoveToFolder: moveThisNote,
           onRefresh: _loadSavedNotes,
         ),
       );
@@ -1084,6 +1121,7 @@ class _NotesPageState extends State<NotesPage> {
         isFavorite: note['is_favorite'] ?? false,
         isSelected: isSelected,
         onDelete: () => _deleteNote(noteId, note['file_url']),
+        onMoveToFolder: moveThisNote,
         onRefresh: _loadRecentNotes,
       ),
     );
@@ -1493,6 +1531,7 @@ class NoteItem extends StatefulWidget {
   final String? authorName;
   final VoidCallback onDelete;
   final VoidCallback? onUnsave;
+  final VoidCallback onMoveToFolder;
   final VoidCallback onRefresh;
 
   const NoteItem({
@@ -1508,6 +1547,7 @@ class NoteItem extends StatefulWidget {
     required this.isSelected,
     required this.onDelete,
     required this.selectionMode,
+    required this.onMoveToFolder,
     required this.onRefresh,
     this.isOwned = true,
     this.authorName,
@@ -1569,497 +1609,34 @@ class _NoteItemState extends State<NoteItem>
   }
 
   @override
+  void didUpdateWidget(covariant NoteItem oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Keep the star in sync if the underlying favorite state changes from
+    // elsewhere (e.g. the shared "..." menu, or a batch star/unstar).
+    if (oldWidget.isFavorite != widget.isFavorite) {
+      isFavorite = widget.isFavorite;
+    }
+  }
+
+  @override
   void dispose() {
     _animationController.dispose();
     super.dispose();
   }
 
-  Future<void> _shareNote() async {
-    try {
-      final supabase = Supabase.instance.client;
-
-      final uri = Uri.parse(widget.fileUrl);
-      final segments = uri.pathSegments;
-
-      // /storage/v1/object/public/notes/<user_id>/<filename>
-      final bucketIndex = segments.indexOf('notes');
-      if (bucketIndex == -1) {
-        throw Exception('Invalid file URL');
-      }
-
-      final storagePath = segments.sublist(bucketIndex + 1).join('/');
-
-      // Create signed URL (1 hour)
-      final signedUrl = await supabase.storage
-          .from('notes')
-          .createSignedUrl(storagePath, 60 * 60);
-
-      await Share.share(
-        '📄 ${widget.title}\n\n$signedUrl',
-        subject: widget.title,
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Failed to share note: $e')));
-    }
-  }
-
   Future<void> _toggleFavorite() async {
-    final supabase = Supabase.instance.client;
-    final user = supabase.auth.currentUser;
-
-    if (user == null) return;
-
+    final wasFavorite = isFavorite;
     try {
-      if (isFavorite) {
-        await supabase
-            .from('favorites')
-            .delete()
-            .eq('user_id', user.id)
-            .eq('note_id', widget.noteId);
-      } else {
-        await supabase.from('favorites').insert({
-          'user_id': user.id,
-          'note_id': widget.noteId,
-        });
-        _animationController.forward(from: 0.0);
-      }
-
-      setState(() {
-        isFavorite = !isFavorite;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
+      await toggleNoteFavorite(
         context,
-      ).showSnackBar(SnackBar(content: Text('Error updating favorite: $e')));
+        noteId: widget.noteId,
+        isFavorite: wasFavorite,
+      );
+      if (!wasFavorite) _animationController.forward(from: 0.0);
+      if (mounted) setState(() => isFavorite = !wasFavorite);
+    } catch (_) {
+      // toggleNoteFavorite already surfaced a snackbar on failure.
     }
-  }
-
-  void _showEditDialog(BuildContext context) {
-    final TextEditingController titleController = TextEditingController(
-      text: widget.title,
-    );
-    final TextEditingController descController = TextEditingController(
-      text: widget.description ?? '',
-    );
-    final TextEditingController tagController = TextEditingController();
-    List<String> editableTags = List<String>.from(widget.tags);
-
-    showDialog(
-      context: context,
-      builder:
-          (context) => StatefulBuilder(
-            builder:
-                (context, setDialogState) => AlertDialog(
-                  backgroundColor: kCardColor,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  title: const Text(
-                    'Edit Note',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  content: SingleChildScrollView(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Title input
-                        const Text(
-                          'Title',
-                          style: TextStyle(color: Colors.grey, fontSize: 13),
-                        ),
-                        const SizedBox(height: 6),
-                        Container(
-                          decoration: BoxDecoration(
-                            color: kDarkSurface,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: TextField(
-                            controller: titleController,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 15,
-                            ),
-                            decoration: const InputDecoration(
-                              hintText: 'Enter title...',
-                              hintStyle: TextStyle(
-                                color: Colors.grey,
-                                fontSize: 14,
-                              ),
-                              border: InputBorder.none,
-                              contentPadding: EdgeInsets.symmetric(
-                                horizontal: 14,
-                                vertical: 12,
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-
-                        // Description input
-                        const Text(
-                          'Description',
-                          style: TextStyle(color: Colors.grey, fontSize: 13),
-                        ),
-                        const SizedBox(height: 6),
-                        Container(
-                          decoration: BoxDecoration(
-                            color: kDarkSurface,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: TextField(
-                            controller: descController,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 15,
-                            ),
-                            maxLines: 3,
-                            decoration: const InputDecoration(
-                              hintText: 'Add a description...',
-                              hintStyle: TextStyle(
-                                color: Colors.grey,
-                                fontSize: 14,
-                              ),
-                              border: InputBorder.none,
-                              contentPadding: EdgeInsets.symmetric(
-                                horizontal: 14,
-                                vertical: 12,
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-
-                        // Tags section
-                        const Text(
-                          'Tags',
-                          style: TextStyle(color: Colors.grey, fontSize: 13),
-                        ),
-                        const SizedBox(height: 6),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  color: kDarkSurface,
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                child: TextField(
-                                  controller: tagController,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 15,
-                                  ),
-                                  decoration: const InputDecoration(
-                                    hintText: 'Add a tag...',
-                                    hintStyle: TextStyle(
-                                      color: Colors.grey,
-                                      fontSize: 14,
-                                    ),
-                                    border: InputBorder.none,
-                                    contentPadding: EdgeInsets.symmetric(
-                                      horizontal: 14,
-                                      vertical: 12,
-                                    ),
-                                  ),
-                                  onSubmitted: (value) {
-                                    final trimmed = value.trim().toLowerCase();
-                                    if (trimmed.isNotEmpty &&
-                                        !editableTags.contains(trimmed)) {
-                                      setDialogState(() {
-                                        editableTags.add(trimmed);
-                                        tagController.clear();
-                                      });
-                                    }
-                                  },
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Container(
-                              decoration: BoxDecoration(
-                                color: kPrimaryColor,
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: IconButton(
-                                icon: const Icon(
-                                  Icons.add,
-                                  color: Colors.white,
-                                  size: 20,
-                                ),
-                                onPressed: () {
-                                  final trimmed =
-                                      tagController.text.trim().toLowerCase();
-                                  if (trimmed.isNotEmpty &&
-                                      !editableTags.contains(trimmed)) {
-                                    setDialogState(() {
-                                      editableTags.add(trimmed);
-                                      tagController.clear();
-                                    });
-                                  }
-                                },
-                                padding: const EdgeInsets.all(8),
-                                constraints: const BoxConstraints(),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-
-                        // Display tags
-                        if (editableTags.isNotEmpty)
-                          Wrap(
-                            spacing: 6,
-                            runSpacing: 6,
-                            children:
-                                editableTags.map((tag) {
-                                  return Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 10,
-                                      vertical: 5,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: kDarkSurface,
-                                      borderRadius: BorderRadius.circular(6),
-                                      border: Border.all(
-                                        color: kPrimaryColor.withOpacity(0.3),
-                                        width: 1,
-                                      ),
-                                    ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Text(
-                                          tag,
-                                          style: const TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.w400,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 6),
-                                        GestureDetector(
-                                          onTap: () {
-                                            setDialogState(() {
-                                              editableTags.remove(tag);
-                                            });
-                                          },
-                                          child: Icon(
-                                            Icons.close,
-                                            color: Colors.grey[400],
-                                            size: 14,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  );
-                                }).toList(),
-                          ),
-                      ],
-                    ),
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text(
-                        'Cancel',
-                        style: TextStyle(color: Colors.grey, fontSize: 15),
-                      ),
-                    ),
-                    ElevatedButton(
-                      onPressed: () async {
-                        try {
-                          final supabase = Supabase.instance.client;
-                          await supabase
-                              .from('notes')
-                              .update({
-                                'title': titleController.text.trim(),
-                                'description':
-                                    descController.text.trim().isEmpty
-                                        ? null
-                                        : descController.text.trim(),
-                                'tags': editableTags,
-                              })
-                              .eq('id', widget.noteId);
-
-                          if (!mounted) return;
-                          Navigator.pop(context);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Note updated successfully'),
-                              backgroundColor: Colors.green,
-                            ),
-                          );
-                          widget.onRefresh();
-                        } catch (e) {
-                          if (!mounted) return;
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Error updating note: $e'),
-                              backgroundColor: Colors.red,
-                            ),
-                          );
-                        }
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: kPrimaryColor,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                      child: const Text(
-                        'Save',
-                        style: TextStyle(color: Colors.white, fontSize: 15),
-                      ),
-                    ),
-                  ],
-                ),
-          ),
-    );
-  }
-
-  void _showOptionsMenu(BuildContext context) {
-    showModalBottomSheet(
-      backgroundColor: kCardColor,
-      useSafeArea: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      context: context,
-      builder:
-          (context) => Padding(
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (widget.isOwned)
-                  _buildOption(context, Icons.edit, "Edit note", () {
-                    Navigator.pop(context);
-                    _showEditDialog(context);
-                  }),
-                _buildOption(context, Icons.share, "Share", () {
-                  Navigator.pop(context);
-                  _shareNote();
-                }),
-                _buildOption(context, Icons.link, "Copy link", () async {
-                  Navigator.pop(context);
-
-                  try {
-                    final supabase = Supabase.instance.client;
-
-                    final uri = Uri.parse(widget.fileUrl);
-                    final segments = uri.pathSegments;
-
-                    final bucketIndex = segments.indexOf('notes');
-                    final storagePath = segments
-                        .sublist(bucketIndex + 1)
-                        .join('/');
-
-                    final signedUrl = await supabase.storage
-                        .from('notes')
-                        .createSignedUrl(storagePath, 60 * 60); // 1 hour
-
-                    await Clipboard.setData(ClipboardData(text: signedUrl));
-
-                    if (!mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Secure link copied (1 hour valid)'),
-                      ),
-                    );
-                  } catch (e) {
-                    if (!mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Failed to copy link: $e')),
-                    );
-                  }
-                }),
-                const Divider(color: Colors.grey),
-                if (widget.isOwned)
-                  _buildOption(context, Icons.delete, "Remove", () {
-                    Navigator.pop(context);
-                    _showDeleteConfirmation(context);
-                  }, isDestructive: true)
-                else
-                  _buildOption(
-                    context,
-                    Icons.bookmark_remove_outlined,
-                    "Remove from saved",
-                    () {
-                      Navigator.pop(context);
-                      widget.onUnsave?.call();
-                    },
-                    isDestructive: true,
-                  ),
-              ],
-            ),
-          ),
-    );
-  }
-
-  void _showDeleteConfirmation(BuildContext context) {
-    showDialog(
-      context: context,
-      builder:
-          (context) => AlertDialog(
-            backgroundColor: kCardColor,
-            title: const Text(
-              'Delete Note',
-              style: TextStyle(color: Colors.white),
-            ),
-            content: const Text(
-              'Are you sure you want to delete this note? This note will be deleted permanently after 10 days.',
-              style: TextStyle(color: Colors.grey),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text(
-                  'Cancel',
-                  style: TextStyle(color: Colors.grey),
-                ),
-              ),
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  widget.onDelete();
-                },
-                child: const Text(
-                  'Delete',
-                  style: TextStyle(color: Colors.red),
-                ),
-              ),
-            ],
-          ),
-    );
-  }
-
-  Widget _buildOption(
-    BuildContext context,
-    IconData icon,
-    String label,
-    VoidCallback onTap, {
-    bool isDestructive = false,
-  }) {
-    return ListTile(
-      leading: Icon(icon, color: isDestructive ? Colors.red : Colors.white),
-      title: Text(
-        label,
-        style: TextStyle(
-          color: isDestructive ? Colors.red : Colors.white,
-          fontWeight: FontWeight.w500,
-        ),
-      ),
-      onTap: onTap,
-    );
   }
 
   IconData _getFileIcon() {
@@ -2258,7 +1835,9 @@ class _NoteItemState extends State<NoteItem>
             ),
           const SizedBox(width: 8),
 
-          // Options menu
+          // Options menu - now the single shared note-options sheet from
+          // note_folder_menus.dart, so this matches FoldersPage's grid
+          // kebab exactly.
           if (!widget.selectionMode)
             Material(
               color: Colors.transparent,
@@ -2267,7 +1846,24 @@ class _NoteItemState extends State<NoteItem>
                 splashColor: Colors.white24,
                 highlightColor: Colors.white10,
                 onTap:
-                    widget.isSelected ? null : () => _showOptionsMenu(context),
+                    widget.isSelected
+                        ? null
+                        : () => showNoteOptionsMenu(
+                          context,
+                          noteId: widget.noteId,
+                          title: widget.title,
+                          description: widget.description,
+                          fileUrl: widget.fileUrl,
+                          fileType: widget.fileType,
+                          tags: widget.tags,
+                          isOwned: widget.isOwned,
+                          isFavorite: isFavorite,
+                          // List tiles already have a dedicated star button,
+                          // so the shared menu skips its own star entry here.
+                          showFavoriteAction: false,
+                          onMoveToFolder: widget.onMoveToFolder,
+                          onRefresh: widget.onRefresh,
+                        ),
                 child: const Padding(
                   padding: EdgeInsets.all(6),
                   child: Icon(Icons.more_vert, color: Colors.grey, size: 22),
