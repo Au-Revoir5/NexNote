@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:typed_data';
 import 'package:nexnote/side/preview.dart';
-import '../backend/thumbnail/note_thumbnail.dart';
-import '../backend/thumbnail/note_thumbnail_cache.dart';
-import '../backend/thumbnail/note_thumbnail_generator.dart';
+import '../helpers/thumbnail/note_thumbnail.dart';
+import '../helpers/thumbnail/note_thumbnail_cache.dart';
+import '../helpers/thumbnail/note_thumbnail_generator.dart';
 
 const kPrimaryColor = Color(0xFF6366F1);
 const kDarkSurface = Color(0xFF1C1C1E);
@@ -92,6 +92,7 @@ class _SearchPageState extends State<SearchPage> {
         created_at,
         updated_at,
         is_public,
+        publisher_id,
         profiles:publisher_id (
           username,
           avatar_url
@@ -100,24 +101,35 @@ class _SearchPageState extends State<SearchPage> {
           .eq('is_public', true)
           .order('updated_at', ascending: false);
 
-      final fetchedNotes = (response as List).map((note) {
-        final isPublic = note['is_public'] == true;
-        final username = isPublic
-            ? (note['profiles']?['username'] ?? 'Anonymous')
-            : 'Anonymous';
+      final currentUserId = supabase.auth.currentUser?.id;
 
-        return NoteItem(
-          id: note['id'],
-          title: note['title'] ?? 'Untitled',
-          author: 'Made by $username',
-          description: note['description'] ?? '', //
-          fileUrl: note['file_url'],
-          fileType: note['file_type'],
-          tags: List<String>.from(note['tags'] ?? []),
-          createdAt: DateTime.parse(note['created_at']),
-          updatedAt: DateTime.parse(note['updated_at']),
-        );
-      }).toList();
+      final fetchedNotes =
+          (response as List).map((note) {
+            final isPublic = note['is_public'] == true;
+            final publisherId = note['publisher_id'] as String?;
+            final username =
+                isPublic
+                    ? (note['profiles']?['username'] ?? 'Anonymous')
+                    : 'Anonymous';
+
+            final authorLabel =
+                (publisherId != null && publisherId == currentUserId)
+                    ? 'Made by You'
+                    : 'Made by $username';
+
+            return NoteItem(
+              id: note['id'],
+              title: note['title'] ?? 'Untitled',
+              author: authorLabel,
+              description: note['description'] ?? '', //
+              fileUrl: note['file_url'],
+              fileType: note['file_type'],
+              tags: List<String>.from(note['tags'] ?? []),
+              createdAt: DateTime.parse(note['created_at']),
+              updatedAt: DateTime.parse(note['updated_at']),
+              publisherId: note['publisher_id'] as String?,
+            );
+          }).toList();
 
       setState(() {
         notes = fetchedNotes;
@@ -144,13 +156,16 @@ class _SearchPageState extends State<SearchPage> {
       if (query.isEmpty) {
         filteredNotes = List.from(notes);
       } else {
-        filteredNotes = notes.where((note) {
-          final titleMatch =
-              note.title.toLowerCase().contains(query.toLowerCase());
-          final tagMatch = note.tags
-              .any((tag) => tag.toLowerCase().contains(query.toLowerCase()));
-          return titleMatch || tagMatch;
-        }).toList();
+        filteredNotes =
+            notes.where((note) {
+              final titleMatch = note.title.toLowerCase().contains(
+                query.toLowerCase(),
+              );
+              final tagMatch = note.tags.any(
+                (tag) => tag.toLowerCase().contains(query.toLowerCase()),
+              );
+              return titleMatch || tagMatch;
+            }).toList();
       }
       _sortNotes();
     });
@@ -205,12 +220,8 @@ class _SearchPageState extends State<SearchPage> {
           fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
         ),
       ),
-      trailing: isSelected
-          ? const Icon(
-              Icons.check,
-              color: kPrimaryColor,
-            )
-          : null,
+      trailing:
+          isSelected ? const Icon(Icons.check, color: kPrimaryColor) : null,
       onTap: () {
         setState(() {
           sortBy = label;
@@ -240,42 +251,44 @@ class _SearchPageState extends State<SearchPage> {
                     children: [
                       AnimatedSwitcher(
                         duration: const Duration(milliseconds: 90),
-                        child: _isSearching
-                            ? const SizedBox.shrink()
-                            : Padding(
-                                key: const ValueKey('search-header'),
-                                padding:
-                                    const EdgeInsets.symmetric(horizontal: 16.0),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                   
-                                        const SizedBox(width: 10),
-                                        const Text(
-                                          'Find Notes You Need',
-                                          style: TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 32,
-                                            fontWeight: FontWeight.bold,
-                                            letterSpacing: -0.5,
+                        child:
+                            _isSearching
+                                ? const SizedBox.shrink()
+                                : Padding(
+                                  key: const ValueKey('search-header'),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16.0,
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          const SizedBox(width: 10),
+                                          const Text(
+                                            'Find Notes You Need',
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 32,
+                                              fontWeight: FontWeight.bold,
+                                              letterSpacing: -0.5,
+                                            ),
                                           ),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 10),
-                                    Text(
-                                      '"Learning never exhausts the mind." — Leonardo da Vinci',
-                                      style: TextStyle(
-                                        color: Colors.grey[500],
-                                        fontSize: 13,
-                                        fontStyle: FontStyle.italic,
+                                        ],
                                       ),
-                                    ),
-                                  ],
+                                      const SizedBox(height: 10),
+                                      Text(
+                                        '"Learning never exhausts the mind." — Leonardo da Vinci',
+                                        style: TextStyle(
+                                          color: Colors.grey[500],
+                                          fontSize: 13,
+                                          fontStyle: FontStyle.italic,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                              ),
                       ),
                       AnimatedContainer(
                         duration: const Duration(milliseconds: 90),
@@ -296,45 +309,53 @@ class _SearchPageState extends State<SearchPage> {
                                   focusNode: _searchFocusNode,
                                   onChanged: (value) {
                                     _filterNotes(value);
-                                    widget.onSearchingChanged
-                                        ?.call(value.isNotEmpty);
+                                    widget.onSearchingChanged?.call(
+                                      value.isNotEmpty,
+                                    );
                                     setState(() {
-                                      _isSearching = value.isNotEmpty ||
+                                      _isSearching =
+                                          value.isNotEmpty ||
                                           _searchFocusNode.hasFocus;
                                     });
                                   },
                                   style: TextStyle(
-                                    color: _searchController.text.isEmpty
-                                        ? Colors.black.withValues(alpha: 0.5)
-                                        : Colors.black,
+                                    color:
+                                        _searchController.text.isEmpty
+                                            ? Colors.black.withValues(
+                                              alpha: 0.5,
+                                            )
+                                            : Colors.black,
                                     fontSize: 16,
                                   ),
                                   decoration: InputDecoration(
                                     hintText: 'Search',
                                     hintStyle: TextStyle(color: Colors.grey),
                                     prefixIcon: AnimatedSwitcher(
-                                      duration:
-                                          const Duration(milliseconds: 90),
-                                      child: _isSearching
-                                          ? IconButton(
-                                              key: const ValueKey('back'),
-                                              icon: const Icon(
+                                      duration: const Duration(
+                                        milliseconds: 90,
+                                      ),
+                                      child:
+                                          _isSearching
+                                              ? IconButton(
+                                                key: const ValueKey('back'),
+                                                icon: const Icon(
                                                   Icons.arrow_back,
-                                                  color: Colors.grey),
-                                              onPressed: () {
-                                                _searchController.clear();
-                                                _filterNotes('');
-                                                _searchFocusNode.unfocus();
-                                                setState(() {
-                                                  _isSearching = false;
-                                                });
-                                              },
-                                            )
-                                          : const Icon(
-                                              Icons.search,
-                                              key: ValueKey('search'),
-                                              color: Colors.grey,
-                                            ),
+                                                  color: Colors.grey,
+                                                ),
+                                                onPressed: () {
+                                                  _searchController.clear();
+                                                  _filterNotes('');
+                                                  _searchFocusNode.unfocus();
+                                                  setState(() {
+                                                    _isSearching = false;
+                                                  });
+                                                },
+                                              )
+                                              : const Icon(
+                                                Icons.search,
+                                                key: ValueKey('search'),
+                                                color: Colors.grey,
+                                              ),
                                     ),
                                     border: InputBorder.none,
                                     contentPadding: EdgeInsets.symmetric(
@@ -350,13 +371,18 @@ class _SearchPageState extends State<SearchPage> {
                               onTap: _showSortOptions,
                               child: Container(
                                 padding: const EdgeInsets.symmetric(
-                                    horizontal: 14, vertical: 12),
+                                  horizontal: 14,
+                                  vertical: 12,
+                                ),
                                 decoration: BoxDecoration(
                                   color: Colors.white,
                                   borderRadius: BorderRadius.circular(25),
                                 ),
-                                child: const Icon(Icons.tune,
-                                    color: Colors.grey, size: 20),
+                                child: const Icon(
+                                  Icons.tune,
+                                  color: Colors.grey,
+                                  size: 20,
+                                ),
                               ),
                             ),
                           ],
@@ -365,89 +391,92 @@ class _SearchPageState extends State<SearchPage> {
                       const SizedBox(height: 24),
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                        child: isLoading
-                            ? const Center(
-                                child: Padding(
-                                  padding: EdgeInsets.all(32.0),
-                                  child: CircularProgressIndicator(
-                                    color: kPrimaryColor,
+                        child:
+                            isLoading
+                                ? const Center(
+                                  child: Padding(
+                                    padding: EdgeInsets.all(32.0),
+                                    child: CircularProgressIndicator(
+                                      color: kPrimaryColor,
+                                    ),
                                   ),
-                                ),
-                              )
-                            : filteredNotes.isEmpty
+                                )
+                                : filteredNotes.isEmpty
                                 ? Center(
-                                    child: Padding(
-                                      padding: const EdgeInsets.all(32.0),
-                                      child: Column(
-                                        children: [
-                                          Container(
-                                            padding: const EdgeInsets.all(20),
-                                            decoration: BoxDecoration(
-                                              color: kCardColor,
-                                              shape: BoxShape.circle,
-                                            ),
-                                            child: Icon(
-                                              Icons.search_off,
-                                              size: 40,
-                                              color: Colors.grey[600],
-                                            ),
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(32.0),
+                                    child: Column(
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.all(20),
+                                          decoration: BoxDecoration(
+                                            color: kCardColor,
+                                            shape: BoxShape.circle,
                                           ),
-                                          const SizedBox(height: 20),
-                                          Text(
-                                            _searchController.text.isEmpty
-                                                ? 'No public notes available'
-                                                : 'No notes found',
-                                            style: TextStyle(
-                                              color: Colors.grey[300],
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.w600,
-                                            ),
+                                          child: Icon(
+                                            Icons.search_off,
+                                            size: 40,
+                                            color: Colors.grey[600],
                                           ),
-                                          const SizedBox(height: 6),
-                                          Text(
-                                            _searchController.text.isEmpty
-                                                ? 'Check back later for shared notes'
-                                                : 'Try a different search term',
-                                            style: TextStyle(
-                                              color: Colors.grey[600],
-                                              fontSize: 13,
-                                            ),
+                                        ),
+                                        const SizedBox(height: 20),
+                                        Text(
+                                          _searchController.text.isEmpty
+                                              ? 'No public notes available'
+                                              : 'No notes found',
+                                          style: TextStyle(
+                                            color: Colors.grey[300],
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w600,
                                           ),
-                                        ],
-                                      ),
+                                        ),
+                                        const SizedBox(height: 6),
+                                        Text(
+                                          _searchController.text.isEmpty
+                                              ? 'Check back later for shared notes'
+                                              : 'Try a different search term',
+                                          style: TextStyle(
+                                            color: Colors.grey[600],
+                                            fontSize: 13,
+                                          ),
+                                        ),
+                                      ],
                                     ),
-                                  )
-                                : GridView.builder(
-                                    shrinkWrap: true,
-                                    physics:
-                                        const NeverScrollableScrollPhysics(),
-                                    itemCount: filteredNotes.length,
-                                    gridDelegate:
-                                        const SliverGridDelegateWithFixedCrossAxisCount(
-                                      crossAxisCount: 2,
-                                      crossAxisSpacing: 12,
-                                      mainAxisSpacing: 12,
-                                      childAspectRatio: 0.85,
-                                    ),
-                                    itemBuilder: (context, index) {
-                                      return NoteCard(
-                                        note: filteredNotes[index],
-                                        onTap: (pdfThumb, docxText, pdfBytes) {
-                                          Navigator.push(
-                                            context,
-                                            MaterialPageRoute(
-                                              builder: (_) => NotePreviewPage(
-                                                note: filteredNotes[index],
-                                                pdfThumbnail: pdfThumb,
-                                                docxPreviewText: docxText,
-                                                pdfBytes: pdfBytes,
-                                              ),
-                                            ),
-                                          );
-                                        },
-                                      );
-                                    },
                                   ),
+                                )
+                                : GridView.builder(
+                                  shrinkWrap: true,
+                                  physics: const NeverScrollableScrollPhysics(),
+                                  itemCount: filteredNotes.length,
+                                  gridDelegate:
+                                      const SliverGridDelegateWithFixedCrossAxisCount(
+                                        crossAxisCount: 2,
+                                        crossAxisSpacing: 12,
+                                        mainAxisSpacing: 12,
+                                        childAspectRatio: 0.85,
+                                      ),
+                                  itemBuilder: (context, index) {
+                                    final note = filteredNotes[index];
+                                    return NoteCard(
+                                      key: ValueKey(note.id),
+                                      note: note,
+                                      onTap: (pdfThumb, docxText, pdfBytes) {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder:
+                                                (_) => NotePreviewPage(
+                                                  note: note,
+                                                  pdfThumbnail: pdfThumb,
+                                                  docxPreviewText: docxText,
+                                                  pdfBytes: pdfBytes,
+                                                ),
+                                          ),
+                                        );
+                                      },
+                                    );
+                                  },
+                                ),
                       ),
                       SizedBox(height: 40),
                     ],
@@ -472,6 +501,7 @@ class NoteItem {
   final List<String> tags;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final String? publisherId;
 
   NoteItem({
     required this.id,
@@ -483,6 +513,7 @@ class NoteItem {
     required this.tags,
     required this.createdAt,
     required this.updatedAt,
+    required this.publisherId,
   });
 
   Color get color {
@@ -505,13 +536,10 @@ class NoteCard extends StatefulWidget {
     Uint8List? pdfThumbnail,
     String? docxPreviewText,
     Uint8List? pdfBytes,
-  ) onTap;
+  )
+  onTap;
 
-  const NoteCard({
-    super.key,
-    required this.note,
-    required this.onTap,
-  });
+  const NoteCard({super.key, required this.note, required this.onTap});
 
   @override
   State<NoteCard> createState() => _NoteCardState();
@@ -642,8 +670,10 @@ class _NoteCardState extends State<NoteCard> {
                 top: 10,
                 left: 10,
                 child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: _fileTypeColor().withOpacity(0.9),
                     borderRadius: BorderRadius.circular(6),
@@ -683,30 +713,31 @@ class _NoteCardState extends State<NoteCard> {
                           child: Wrap(
                             spacing: 4,
                             runSpacing: 4,
-                            children: widget.note.tags.take(2).map((tag) {
-                              return Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 7,
-                                  vertical: 2,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(0.15),
-                                  borderRadius: BorderRadius.circular(20),
-                                  border: Border.all(
-                                    color: Colors.white.withOpacity(0.25),
-                                    width: 0.5,
-                                  ),
-                                ),
-                                child: Text(
-                                  tag,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              );
-                            }).toList(),
+                            children:
+                                widget.note.tags.take(2).map((tag) {
+                                  return Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 7,
+                                      vertical: 2,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withOpacity(0.15),
+                                      borderRadius: BorderRadius.circular(20),
+                                      border: Border.all(
+                                        color: Colors.white.withOpacity(0.25),
+                                        width: 0.5,
+                                      ),
+                                    ),
+                                    child: Text(
+                                      tag,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  );
+                                }).toList(),
                           ),
                         ),
                       Text(
@@ -723,8 +754,11 @@ class _NoteCardState extends State<NoteCard> {
                       const SizedBox(height: 3),
                       Row(
                         children: [
-                          const Icon(Icons.person_outline,
-                              size: 11, color: Colors.white60),
+                          const Icon(
+                            Icons.person_outline,
+                            size: 11,
+                            color: Colors.white60,
+                          ),
                           const SizedBox(width: 3),
                           Expanded(
                             child: Text(

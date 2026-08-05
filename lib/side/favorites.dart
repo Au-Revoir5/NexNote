@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:nexnote/backend/file_opener.dart';
+import 'package:nexnote/helpers/file_opener.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../backend/thumbnail/note_thumbnail.dart';
-import '../backend/thumbnail/note_thumbnail_cache.dart';
-import '../backend/thumbnail/note_thumbnail_generator.dart';
+import '../helpers/thumbnail/note_thumbnail.dart';
+import '../helpers/thumbnail/note_thumbnail_cache.dart';
+import '../helpers/thumbnail/note_thumbnail_generator.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:flutter/services.dart';
 import 'dart:async';
@@ -36,6 +36,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
     super.initState();
     _loadFavorites();
   }
+
   bool _isOwner(Map<String, dynamic> note) {
     final currentUserId = _supabase.auth.currentUser?.id;
     return currentUserId != null && note['owner_id'] == currentUserId;
@@ -55,21 +56,22 @@ class _FavoritesPageState extends State<FavoritesPage> {
           .select('note_id, created_at, notes(*)')
           .eq('user_id', user.id);
 
-      final favorites = (response as List).map((fav) {
-        final note = fav['notes'];
-        return {
-          'favorite_id': fav['note_id'],
-          'id': note['id'],
-          'title': note['title'],
-          'file_url': note['file_url'],
-          'file_type': note['file_type'],
-          'tags': note['tags'],
-          'is_public': note['is_public'],
-          'updated_at': note['updated_at'],
-          'created_at': note['created_at'],
-          'owner_id': note['user_id'],
-        };
-      }).toList();
+      final favorites =
+          (response as List).map((fav) {
+            final note = fav['notes'];
+            return {
+              'favorite_id': fav['note_id'],
+              'id': note['id'],
+              'title': note['title'],
+              'file_url': note['file_url'],
+              'file_type': note['file_type'],
+              'tags': note['tags'],
+              'is_public': note['is_public'],
+              'updated_at': note['updated_at'],
+              'created_at': note['created_at'],
+              'owner_id': note['user_id'],
+            };
+          }).toList();
 
       setState(() {
         _favoriteNotes = favorites;
@@ -80,9 +82,9 @@ class _FavoritesPageState extends State<FavoritesPage> {
         _isLoading = false;
       });
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading favorites: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error loading favorites: $e')));
       }
     }
   }
@@ -101,15 +103,15 @@ class _FavoritesPageState extends State<FavoritesPage> {
       await _loadFavorites();
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Removed from favorites')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Removed from favorites')));
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error removing favorite: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error removing favorite: $e')));
       }
     }
   }
@@ -128,16 +130,16 @@ class _FavoritesPageState extends State<FavoritesPage> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error deleting note: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error deleting note: $e')));
       }
     }
   }
 
   String _getTimeAgo(String? timestamp) {
     if (timestamp == null) return 'Unknown';
-    
+
     // Supabase returns UTC timestamps without 'Z', so we need to parse as UTC explicitly
     final dateTime = DateTime.parse(timestamp + 'Z').toLocal();
     final now = DateTime.now();
@@ -168,94 +170,211 @@ class _FavoritesPageState extends State<FavoritesPage> {
     List<Map<String, dynamic>> sortedItems = List.from(_favoriteNotes);
     _sortItems(sortedItems);
 
+    final myNotes = sortedItems.where(_isOwner).toList();
+    final communityNotes = sortedItems.where((n) => !_isOwner(n)).toList();
+
     return Scaffold(
       backgroundColor: kDarkSurface,
-      appBar: widget.showAppBar
-          ? AppBar(
-              backgroundColor: kDarkSurface,
-              elevation: 0,
-              leading: IconButton(
-                icon: Icon(Icons.arrow_back, color: Colors.white, size: iconSize),
-                onPressed: () => Navigator.pop(context),
-              ),
-              title: Text(
-                "My Favorites",
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 18 * textScale,
-                  fontWeight: FontWeight.w600,
+      appBar:
+          widget.showAppBar
+              ? AppBar(
+                backgroundColor: kDarkSurface,
+                elevation: 0,
+                leading: IconButton(
+                  icon: Icon(
+                    Icons.arrow_back,
+                    color: Colors.white,
+                    size: iconSize,
+                  ),
+                  onPressed: () => Navigator.pop(context),
                 ),
-              ),
-            )
-          : null,
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: kPrimaryColor))
-          : Column(
-              children: [
-                Padding(
-                  padding: EdgeInsets.symmetric(horizontal: padding, vertical: padding / 2),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: _showSortOptions,
-                          child: Row(
-                            children: [
-                              Flexible(
-                                child: Text(
-                                  sortBy,
-                                  style: TextStyle(color: Colors.white70, fontSize: 16 * textScale),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                              const Icon(Icons.keyboard_arrow_down, color: Colors.white70),
-                            ],
-                          ),
-                        ),
-                      ),
-                      IconButton(
-                        icon: Icon(
-                          isGridView ? Icons.grid_view : Icons.list,
-                          color: Colors.white70,
-                          size: iconSize,
-                        ),
-                        onPressed: () {
-                          setState(() {
-                            isGridView = !isGridView;
-                          });
-                        },
-                      ),
-                    ],
+                title: Text(
+                  "My Favorites",
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18 * textScale,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
-                Expanded(
-                  child: _favoriteNotes.isEmpty
-                      ? Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.star_border, size: 64, color: Colors.grey[600]),
-                              const SizedBox(height: 16),
-                              Text('No favorites yet', style: TextStyle(color: Colors.grey[400], fontSize: 16)),
-                              const SizedBox(height: 8),
-                              Text(
-                                'Tap the star icon on any note to add it here',
-                                style: TextStyle(color: Colors.grey[600], fontSize: 14),
-                                textAlign: TextAlign.center,
-                              ),
-                            ],
+              )
+              : null,
+      body:
+          _isLoading
+              ? const Center(
+                child: CircularProgressIndicator(color: kPrimaryColor),
+              )
+              : Column(
+                children: [
+                  Padding(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: padding,
+                      vertical: padding / 2,
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: _showSortOptions,
+                            child: Row(
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    sortBy,
+                                    style: TextStyle(
+                                      color: Colors.white70,
+                                      fontSize: 16 * textScale,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                const Icon(
+                                  Icons.keyboard_arrow_down,
+                                  color: Colors.white70,
+                                ),
+                              ],
+                            ),
                           ),
-                        )
-                      : RefreshIndicator(
-                          color: kPrimaryColor,
-                          onRefresh: _loadFavorites,
-                          child: isGridView
-                              ? _buildGridView(sortedItems, width)
-                              : _buildListView(sortedItems, textScale, iconSize),
                         ),
-                ),
-              ],
-            ),
+                        IconButton(
+                          icon: Icon(
+                            isGridView ? Icons.list : Icons.grid_view,
+                            color: Colors.white70,
+                            size: iconSize,
+                          ),
+                          onPressed: () {
+                            setState(() {
+                              isGridView = !isGridView;
+                            });
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child:
+                        _favoriteNotes.isEmpty
+                            ? Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.star_border,
+                                    size: 64,
+                                    color: Colors.grey[600],
+                                  ),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    'No favorites yet',
+                                    style: TextStyle(
+                                      color: Colors.grey[400],
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    'Tap the star icon on any note to add it here',
+                                    style: TextStyle(
+                                      color: Colors.grey[600],
+                                      fontSize: 14,
+                                    ),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ],
+                              ),
+                            )
+                            : RefreshIndicator(
+                              color: kPrimaryColor,
+                              onRefresh: _loadFavorites,
+                              child: SingleChildScrollView(
+                                physics: const AlwaysScrollableScrollPhysics(),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    if (myNotes.isNotEmpty) ...[
+                                      Padding(
+                                        padding: EdgeInsets.symmetric(
+                                          horizontal: padding,
+                                          vertical: padding / 2,
+                                        ),
+                                        child: Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            Text(
+                                              'My Notes',
+                                              style: TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 16 * textScale,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                            Text(
+                                              '${myNotes.length} note${myNotes.length != 1 ? 's' : ''}',
+                                              style: TextStyle(
+                                                color: Colors.grey[500],
+                                                fontSize: 13 * textScale,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      isGridView
+                                          ? _buildGridView(myNotes, width)
+                                          : _buildListView(
+                                            myNotes,
+                                            textScale,
+                                            iconSize,
+                                          ),
+                                    ],
+                                    if (communityNotes.isNotEmpty) ...[
+                                      Padding(
+                                        padding: EdgeInsets.fromLTRB(
+                                          padding,
+                                          myNotes.isNotEmpty ? 24 : padding / 2,
+                                          padding,
+                                          padding / 2,
+                                        ),
+                                        child: Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            Text(
+                                              'From Community',
+                                              style: TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 16 * textScale,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                            Text(
+                                              '${communityNotes.length} note${communityNotes.length != 1 ? 's' : ''}',
+                                              style: TextStyle(
+                                                color: Colors.grey[500],
+                                                fontSize: 13 * textScale,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      isGridView
+                                          ? _buildGridView(
+                                            communityNotes,
+                                            width,
+                                          )
+                                          : _buildListView(
+                                            communityNotes,
+                                            textScale,
+                                            iconSize,
+                                          ),
+                                    ],
+                                    const SizedBox(height: 24),
+                                  ],
+                                ),
+                              ),
+                            ),
+                  ),
+                ],
+              ),
     );
   }
 
@@ -287,10 +406,18 @@ class _FavoritesPageState extends State<FavoritesPage> {
   void _sortItems(List<Map<String, dynamic>> items) {
     switch (sortBy) {
       case "Last Edited (Recent)":
-        items.sort((a, b) => DateTime.parse(b['updated_at']).compareTo(DateTime.parse(a['updated_at'])));
+        items.sort(
+          (a, b) => DateTime.parse(
+            b['updated_at'],
+          ).compareTo(DateTime.parse(a['updated_at'])),
+        );
         break;
       case "Last Edited (Oldest)":
-        items.sort((a, b) => DateTime.parse(a['updated_at']).compareTo(DateTime.parse(b['updated_at'])));
+        items.sort(
+          (a, b) => DateTime.parse(
+            a['updated_at'],
+          ).compareTo(DateTime.parse(b['updated_at'])),
+        );
         break;
       case "Alphabetical":
         items.sort((a, b) => a['title'].compareTo(b['title']));
@@ -301,8 +428,15 @@ class _FavoritesPageState extends State<FavoritesPage> {
   Widget _sortOption(String option) {
     final isSelected = sortBy == option;
     return ListTile(
-      title: Text(option, style: TextStyle(color: isSelected ? kPrimaryColor : Colors.white, fontSize: 16)),
-      trailing: isSelected ? const Icon(Icons.check, color: kPrimaryColor) : null,
+      title: Text(
+        option,
+        style: TextStyle(
+          color: isSelected ? kPrimaryColor : Colors.white,
+          fontSize: 16,
+        ),
+      ),
+      trailing:
+          isSelected ? const Icon(Icons.check, color: kPrimaryColor) : null,
       onTap: () {
         setState(() {
           sortBy = option;
@@ -314,7 +448,9 @@ class _FavoritesPageState extends State<FavoritesPage> {
 
   Widget _buildGridView(List<Map<String, dynamic>> items, double width) {
     return GridView.builder(
-      padding: const EdgeInsets.all(12),
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.symmetric(horizontal: 12),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
         crossAxisSpacing: 10,
@@ -340,8 +476,14 @@ class _FavoritesPageState extends State<FavoritesPage> {
     );
   }
 
-  Widget _buildListView(List<Map<String, dynamic>> items, double textScale, double iconSize) {
+  Widget _buildListView(
+    List<Map<String, dynamic>> items,
+    double textScale,
+    double iconSize,
+  ) {
     return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
       padding: const EdgeInsets.symmetric(horizontal: 16),
       itemCount: items.length,
       itemBuilder: (context, index) {
@@ -372,10 +514,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
     bool isDestructive = false,
   }) {
     return ListTile(
-      leading: Icon(
-        icon,
-        color: isDestructive ? Colors.red : Colors.white,
-      ),
+      leading: Icon(icon, color: isDestructive ? Colors.red : Colors.white),
       title: Text(
         label,
         style: TextStyle(
@@ -387,416 +526,478 @@ class _FavoritesPageState extends State<FavoritesPage> {
     );
   }
 
-
   void _showItemMenu(Map<String, dynamic> note) {
-  final isOwner = _isOwner(note);
+    final isOwner = _isOwner(note);
 
-  showModalBottomSheet(
-    backgroundColor: kCardColor,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-    ),
-    context: context,
-    builder: (context) => StatefulBuilder(
-      builder: (context, setSheetState) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (isOwner)
-              _buildOption(context, Icons.edit, "Edit note", () {
-                Navigator.pop(context);
-                _showEditDialog(note);
-              }),
-
-            _buildOption(context, Icons.share, "Share", () async {
-              Navigator.pop(context);
-
-              try {
-                final supabase = Supabase.instance.client;
-
-                final uri = Uri.parse(note['file_url']);
-                final segments = uri.pathSegments;
-
-                final bucketIndex = segments.indexOf('notes');
-                if (bucketIndex == -1) throw Exception('Invalid file URL');
-
-                final storagePath =
-                    segments.sublist(bucketIndex + 1).join('/');
-
-                final signedUrl = await supabase.storage
-                    .from('notes')
-                    .createSignedUrl(storagePath, 60 * 60);
-
-                await Share.share(
-                  '📄 ${note['title']}\n\n$signedUrl',
-                  subject: note['title'],
-                );
-              } catch (e) {
-                if (!mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Failed to share note: $e')),
-                );
-              }
-            }),
-
-            _buildOption(
-              context,
-              _copiedNoteId == note['id'] ? Icons.check : Icons.link,
-              _copiedNoteId == note['id'] ? "Copied" : "Copy link",
-              () async {
-                try {
-                  final uri = Uri.parse(note['file_url']);
-                  final segments = uri.pathSegments;
-
-                  final bucketIndex = segments.indexOf('notes');
-                  if (bucketIndex == -1) throw Exception('Invalid file URL');
-
-                  final storagePath =
-                      segments.sublist(bucketIndex + 1).join('/');
-
-                  final signedUrl = await _supabase.storage
-                      .from('notes')
-                      .createSignedUrl(storagePath, 60 * 60);
-
-                  await Clipboard.setData(
-                    ClipboardData(text: signedUrl),
-                  );
-
-                  setSheetState(() {
-                    _copiedNoteId = note['id'];
-                  });
-
-                  HapticFeedback.lightImpact();
-
-                  _copyResetTimer?.cancel();
-                  _copyResetTimer = Timer(const Duration(seconds: 5), () {
-                    if (!mounted) return;
-                    setSheetState(() {
-                      _copiedNoteId = null;
-                    });
-                  });
-                } catch (e) {
-                  if (!mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Failed to copy link: $e')),
-                  );
-                }
-              },
-            ),
-
-            _buildOption(
-              context,
-              Icons.star_border,
-              "Remove from Favorites",
-              () {
-                Navigator.pop(context);
-                _removeFavorite(note['id']);
-              },
-            ),
-
-            const Divider(color: Colors.grey),
-
-            if (isOwner)
-              _buildOption(
-                context,
-                Icons.delete,
-                "Delete",
-                () {
-                  Navigator.pop(context);
-                  _showDeleteConfirmation(note);
-                },
-                isDestructive: true,
-              )
-            else
-              _buildOption(
-                context,
-                Icons.report_outlined,
-                "Report note",
-                () {
-                  Navigator.pop(context);
-                  // TODO: wire up reporting flow if you have one
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Report submitted')),
-                  );
-                },
-                isDestructive: true,
-              ),
-          ],
-        ),
+    showModalBottomSheet(
+      backgroundColor: kCardColor,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
-    ),
-  );
-}
+      context: context,
+      builder:
+          (context) => StatefulBuilder(
+            builder:
+                (context, setSheetState) => Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (isOwner)
+                        _buildOption(context, Icons.edit, "Edit note", () {
+                          Navigator.pop(context);
+                          _showEditDialog(note);
+                        }),
+
+                      _buildOption(context, Icons.share, "Share", () async {
+                        Navigator.pop(context);
+
+                        try {
+                          final supabase = Supabase.instance.client;
+
+                          final uri = Uri.parse(note['file_url']);
+                          final segments = uri.pathSegments;
+
+                          final bucketIndex = segments.indexOf('notes');
+                          if (bucketIndex == -1)
+                            throw Exception('Invalid file URL');
+
+                          final storagePath = segments
+                              .sublist(bucketIndex + 1)
+                              .join('/');
+
+                          final signedUrl = await supabase.storage
+                              .from('notes')
+                              .createSignedUrl(storagePath, 60 * 60);
+
+                          await Share.share(
+                            '📄 ${note['title']}\n\n$signedUrl',
+                            subject: note['title'],
+                          );
+                        } catch (e) {
+                          if (!mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Failed to share note: $e')),
+                          );
+                        }
+                      }),
+
+                      _buildOption(
+                        context,
+                        _copiedNoteId == note['id'] ? Icons.check : Icons.link,
+                        _copiedNoteId == note['id'] ? "Copied" : "Copy link",
+                        () async {
+                          try {
+                            final uri = Uri.parse(note['file_url']);
+                            final segments = uri.pathSegments;
+
+                            final bucketIndex = segments.indexOf('notes');
+                            if (bucketIndex == -1)
+                              throw Exception('Invalid file URL');
+
+                            final storagePath = segments
+                                .sublist(bucketIndex + 1)
+                                .join('/');
+
+                            final signedUrl = await _supabase.storage
+                                .from('notes')
+                                .createSignedUrl(storagePath, 60 * 60);
+
+                            await Clipboard.setData(
+                              ClipboardData(text: signedUrl),
+                            );
+
+                            setSheetState(() {
+                              _copiedNoteId = note['id'];
+                            });
+
+                            HapticFeedback.lightImpact();
+
+                            _copyResetTimer?.cancel();
+                            _copyResetTimer = Timer(
+                              const Duration(seconds: 5),
+                              () {
+                                if (!mounted) return;
+                                setSheetState(() {
+                                  _copiedNoteId = null;
+                                });
+                              },
+                            );
+                          } catch (e) {
+                            if (!mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Failed to copy link: $e'),
+                              ),
+                            );
+                          }
+                        },
+                      ),
+
+                      _buildOption(
+                        context,
+                        Icons.star_border,
+                        "Remove from Favorites",
+                        () {
+                          Navigator.pop(context);
+                          _removeFavorite(note['id']);
+                        },
+                      ),
+
+                      const Divider(color: Colors.grey),
+
+                      if (isOwner)
+                        _buildOption(context, Icons.delete, "Delete", () {
+                          Navigator.pop(context);
+                          _showDeleteConfirmation(note);
+                        }, isDestructive: true)
+                      else
+                        _buildOption(
+                          context,
+                          Icons.report_outlined,
+                          "Report note",
+                          () {
+                            Navigator.pop(context);
+                            // TODO: wire up reporting flow if you have one
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Report submitted')),
+                            );
+                          },
+                          isDestructive: true,
+                        ),
+                    ],
+                  ),
+                ),
+          ),
+    );
+  }
 
   void _showEditDialog(Map<String, dynamic> note) {
-    final TextEditingController titleController =
-    TextEditingController(text: note['title']);
+    final TextEditingController titleController = TextEditingController(
+      text: note['title'],
+    );
 
-    final TextEditingController descController =
-        TextEditingController(text: note['description'] ?? '');
+    final TextEditingController descController = TextEditingController(
+      text: note['description'] ?? '',
+    );
 
     final TextEditingController tagController = TextEditingController();
 
     List<String> editableTags =
         note['tags'] != null ? List<String>.from(note['tags']) : [];
 
-
     showDialog(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          backgroundColor: kCardColor,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          title: const Text(
-            'Edit Note',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Title input
-                const Text(
-                  'Title',
-                  style: TextStyle(color: Colors.grey, fontSize: 13),
-                ),
-                const SizedBox(height: 6),
-                Container(
-                  decoration: BoxDecoration(
-                    color: kDarkSurface,
-                    borderRadius: BorderRadius.circular(10),
+      builder:
+          (context) => StatefulBuilder(
+            builder:
+                (context, setDialogState) => AlertDialog(
+                  backgroundColor: kCardColor,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
                   ),
-                  child: TextField(
-                    controller: titleController,
-                    style: const TextStyle(color: Colors.white, fontSize: 15),
-                    decoration: const InputDecoration(
-                      hintText: 'Enter title...',
-                      hintStyle: TextStyle(color: Colors.grey, fontSize: 14),
-                      border: InputBorder.none,
-                      contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  title: const Text(
+                    'Edit Note',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
-                ),
-                const SizedBox(height: 16),
-                
-                // Description input
-                const Text(
-                  'Description',
-                  style: TextStyle(color: Colors.grey, fontSize: 13),
-                ),
-                const SizedBox(height: 6),
-                Container(
-                  decoration: BoxDecoration(
-                    color: kDarkSurface,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: TextField(
-                    controller: descController,
-                    style: const TextStyle(color: Colors.white, fontSize: 15),
-                    maxLines: 3,
-                    decoration: const InputDecoration(
-                      hintText: 'Add a description...',
-                      hintStyle: TextStyle(color: Colors.grey, fontSize: 14),
-                      border: InputBorder.none,
-                      contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                
-                // Tags section
-                const Text(
-                  'Tags',
-                  style: TextStyle(color: Colors.grey, fontSize: 13),
-                ),
-                const SizedBox(height: 6),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: kDarkSurface,
-                          borderRadius: BorderRadius.circular(10),
+                  content: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Title input
+                        const Text(
+                          'Title',
+                          style: TextStyle(color: Colors.grey, fontSize: 13),
                         ),
-                        child: TextField(
-                          controller: tagController,
-                          style: const TextStyle(color: Colors.white, fontSize: 15),
-                          decoration: const InputDecoration(
-                            hintText: 'Add a tag...',
-                            hintStyle: TextStyle(color: Colors.grey, fontSize: 14),
-                            border: InputBorder.none,
-                            contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        const SizedBox(height: 6),
+                        Container(
+                          decoration: BoxDecoration(
+                            color: kDarkSurface,
+                            borderRadius: BorderRadius.circular(10),
                           ),
-                          onSubmitted: (value) {
-                            final trimmed = value.trim().toLowerCase();
-                            if (trimmed.isNotEmpty && !editableTags.contains(trimmed)) {
-                              setDialogState(() {
-                                editableTags.add(trimmed);
-                                tagController.clear();
-                              });
-                            }
-                          },
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: kPrimaryColor,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: IconButton(
-                        icon: const Icon(Icons.add, color: Colors.white, size: 20),
-                        onPressed: () {
-                          final trimmed = tagController.text.trim().toLowerCase();
-                          if (trimmed.isNotEmpty && !editableTags.contains(trimmed)) {
-                            setDialogState(() {
-                              editableTags.add(trimmed);
-                              tagController.clear();
-                            });
-                          }
-                        },
-                        padding: const EdgeInsets.all(8),
-                        constraints: const BoxConstraints(),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                
-                // Display tags
-                if (editableTags.isNotEmpty)
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 6,
-                    children: editableTags.map((tag) {
-                      return Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                        decoration: BoxDecoration(
-                          color: kDarkSurface,
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: kPrimaryColor.withOpacity(0.3), width: 1),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              tag,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w400,
+                          child: TextField(
+                            controller: titleController,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 15,
+                            ),
+                            decoration: const InputDecoration(
+                              hintText: 'Enter title...',
+                              hintStyle: TextStyle(
+                                color: Colors.grey,
+                                fontSize: 14,
+                              ),
+                              border: InputBorder.none,
+                              contentPadding: EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 12,
                               ),
                             ),
-                            const SizedBox(width: 6),
-                            GestureDetector(
-                              onTap: () {
-                                setDialogState(() {
-                                  editableTags.remove(tag);
-                                });
-                              },
-                              child: Icon(
-                                Icons.close,
-                                color: Colors.grey[400],
-                                size: 14,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+
+                        // Description input
+                        const Text(
+                          'Description',
+                          style: TextStyle(color: Colors.grey, fontSize: 13),
+                        ),
+                        const SizedBox(height: 6),
+                        Container(
+                          decoration: BoxDecoration(
+                            color: kDarkSurface,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: TextField(
+                            controller: descController,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 15,
+                            ),
+                            maxLines: 3,
+                            decoration: const InputDecoration(
+                              hintText: 'Add a description...',
+                              hintStyle: TextStyle(
+                                color: Colors.grey,
+                                fontSize: 14,
+                              ),
+                              border: InputBorder.none,
+                              contentPadding: EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 12,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+
+                        // Tags section
+                        const Text(
+                          'Tags',
+                          style: TextStyle(color: Colors.grey, fontSize: 13),
+                        ),
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: kDarkSurface,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: TextField(
+                                  controller: tagController,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 15,
+                                  ),
+                                  decoration: const InputDecoration(
+                                    hintText: 'Add a tag...',
+                                    hintStyle: TextStyle(
+                                      color: Colors.grey,
+                                      fontSize: 14,
+                                    ),
+                                    border: InputBorder.none,
+                                    contentPadding: EdgeInsets.symmetric(
+                                      horizontal: 14,
+                                      vertical: 12,
+                                    ),
+                                  ),
+                                  onSubmitted: (value) {
+                                    final trimmed = value.trim().toLowerCase();
+                                    if (trimmed.isNotEmpty &&
+                                        !editableTags.contains(trimmed)) {
+                                      setDialogState(() {
+                                        editableTags.add(trimmed);
+                                        tagController.clear();
+                                      });
+                                    }
+                                  },
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Container(
+                              decoration: BoxDecoration(
+                                color: kPrimaryColor,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: IconButton(
+                                icon: const Icon(
+                                  Icons.add,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
+                                onPressed: () {
+                                  final trimmed =
+                                      tagController.text.trim().toLowerCase();
+                                  if (trimmed.isNotEmpty &&
+                                      !editableTags.contains(trimmed)) {
+                                    setDialogState(() {
+                                      editableTags.add(trimmed);
+                                      tagController.clear();
+                                    });
+                                  }
+                                },
+                                padding: const EdgeInsets.all(8),
+                                constraints: const BoxConstraints(),
                               ),
                             ),
                           ],
                         ),
-                      );
-                    }).toList(),
-                  ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text(
-                'Cancel',
-                style: TextStyle(color: Colors.grey, fontSize: 15),
-              ),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                try {
-                  final supabase = Supabase.instance.client;
-                  await supabase
-                      .from('notes')
-                      .update({
-                        'title': titleController.text.trim(),
-                        'description': descController.text.trim().isEmpty ? null : descController.text.trim(),
-                        'tags': editableTags,
-                      })
-                      .eq('id', note['id']);
-                  
-                  if (!mounted) return;
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Note updated successfully'),
-                        backgroundColor: Colors.green,
-                      ),
-                    );
-                    _loadFavorites();
-                } catch (e) {
-                  if (!mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Error updating note: $e'),
-                      backgroundColor: Colors.red,
+                        const SizedBox(height: 12),
+
+                        // Display tags
+                        if (editableTags.isNotEmpty)
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 6,
+                            children:
+                                editableTags.map((tag) {
+                                  return Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 5,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: kDarkSurface,
+                                      borderRadius: BorderRadius.circular(6),
+                                      border: Border.all(
+                                        color: kPrimaryColor.withOpacity(0.3),
+                                        width: 1,
+                                      ),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          tag,
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w400,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 6),
+                                        GestureDetector(
+                                          onTap: () {
+                                            setDialogState(() {
+                                              editableTags.remove(tag);
+                                            });
+                                          },
+                                          child: Icon(
+                                            Icons.close,
+                                            color: Colors.grey[400],
+                                            size: 14,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                }).toList(),
+                          ),
+                      ],
                     ),
-                  );
-                }
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: kPrimaryColor,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text(
+                        'Cancel',
+                        style: TextStyle(color: Colors.grey, fontSize: 15),
+                      ),
+                    ),
+                    ElevatedButton(
+                      onPressed: () async {
+                        try {
+                          final supabase = Supabase.instance.client;
+                          await supabase
+                              .from('notes')
+                              .update({
+                                'title': titleController.text.trim(),
+                                'description':
+                                    descController.text.trim().isEmpty
+                                        ? null
+                                        : descController.text.trim(),
+                                'tags': editableTags,
+                              })
+                              .eq('id', note['id']);
+
+                          if (!mounted) return;
+                          Navigator.pop(context);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Note updated successfully'),
+                              backgroundColor: Colors.green,
+                            ),
+                          );
+                          _loadFavorites();
+                        } catch (e) {
+                          if (!mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Error updating note: $e'),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: kPrimaryColor,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      child: const Text(
+                        'Save',
+                        style: TextStyle(color: Colors.white, fontSize: 15),
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-              child: const Text(
-                'Save',
-                style: TextStyle(color: Colors.white, fontSize: 15),
-              ),
-            ),
-          ],
-        ),
-      ),
+          ),
     );
   }
+
   void _showDeleteConfirmation(Map<String, dynamic> note) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: kCardColor,
-        title: const Text('Delete Note', style: TextStyle(color: Colors.white)),
-        content: const Text(
-          'Are you sure you want to delete this note? This action cannot be undone.',
-          style: TextStyle(color: Colors.grey),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+      builder:
+          (context) => AlertDialog(
+            backgroundColor: kCardColor,
+            title: const Text(
+              'Delete Note',
+              style: TextStyle(color: Colors.white),
+            ),
+            content: const Text(
+              'Are you sure you want to delete this note? This action cannot be undone.',
+              style: TextStyle(color: Colors.grey),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text(
+                  'Cancel',
+                  style: TextStyle(color: Colors.grey),
+                ),
+              ),
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _deleteNote(note['id'], note['file_url']);
+                },
+                child: const Text(
+                  'Delete',
+                  style: TextStyle(color: Colors.red),
+                ),
+              ),
+            ],
           ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _deleteNote(note['id'], note['file_url']);
-            },
-            child: const Text('Delete', style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
     );
   }
 }
@@ -821,8 +1022,6 @@ class FavoriteGridItemWidget extends StatefulWidget {
 }
 
 class _FavoriteGridItemWidgetState extends State<FavoriteGridItemWidget> {
-
-
   @override
   void initState() {
     super.initState();
@@ -844,7 +1043,9 @@ class _FavoriteGridItemWidgetState extends State<FavoriteGridItemWidget> {
             AspectRatio(
               aspectRatio: 16 / 9,
               child: ClipRRect(
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(12),
+                ),
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
@@ -866,7 +1067,10 @@ class _FavoriteGridItemWidgetState extends State<FavoriteGridItemWidget> {
                         top: 8,
                         right: 8,
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 3,
+                          ),
                           decoration: BoxDecoration(
                             color: Colors.black.withOpacity(0.6),
                             borderRadius: BorderRadius.circular(4),
@@ -876,7 +1080,14 @@ class _FavoriteGridItemWidgetState extends State<FavoriteGridItemWidget> {
                             children: const [
                               Icon(Icons.public, color: Colors.white, size: 10),
                               SizedBox(width: 3),
-                              Text('Public', style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w600)),
+                              Text(
+                                'Public',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
                             ],
                           ),
                         ),
@@ -905,19 +1116,30 @@ class _FavoriteGridItemWidgetState extends State<FavoriteGridItemWidget> {
                       Expanded(
                         child: Text(
                           widget.note['title'] ?? 'Untitled',
-                          style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
                       GestureDetector(
                         onTap: widget.onMenuTap,
-                        child: Icon(Icons.more_vert, color: Colors.grey[400], size: 18),
+                        child: Icon(
+                          Icons.more_vert,
+                          color: Colors.grey[400],
+                          size: 18,
+                        ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 4),
-                  Text("Last edited ${widget.timeAgo}", style: TextStyle(color: Colors.grey[500], fontSize: 12)),
+                  Text(
+                    "Last edited ${widget.timeAgo}",
+                    style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                  ),
                 ],
               ),
             ),
@@ -934,7 +1156,6 @@ class _FavoriteGridItemWidgetState extends State<FavoriteGridItemWidget> {
       fileType: widget.note['file_type'],
     );
   }
-
 
   Color _getColor() {
     final fileType = widget.note['file_type']?.toLowerCase();
@@ -1008,15 +1229,29 @@ class FavoriteItemWidget extends StatelessWidget {
                   children: [
                     Text(
                       note['title'] ?? 'Untitled',
-                      style: TextStyle(color: Colors.white, fontSize: 16 * textScale, fontWeight: FontWeight.w500),
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16 * textScale,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                     const SizedBox(height: 4),
-                    Text("Last edited $timeAgo", style: TextStyle(color: Colors.grey[400], fontSize: 13 * textScale)),
+                    Text(
+                      "Last edited $timeAgo",
+                      style: TextStyle(
+                        color: Colors.grey[400],
+                        fontSize: 13 * textScale,
+                      ),
+                    ),
                   ],
                 ),
               ),
               IconButton(
-                icon: Icon(Icons.more_vert, color: Colors.grey[400], size: iconSize),
+                icon: Icon(
+                  Icons.more_vert,
+                  color: Colors.grey[400],
+                  size: iconSize,
+                ),
                 onPressed: onMenuTap,
               ),
             ],
@@ -1064,8 +1299,7 @@ class NoteThumbnailWithCache extends StatefulWidget {
   });
 
   @override
-  State<NoteThumbnailWithCache> createState() =>
-      _NoteThumbnailWithCacheState();
+  State<NoteThumbnailWithCache> createState() => _NoteThumbnailWithCacheState();
 }
 
 class _NoteThumbnailWithCacheState extends State<NoteThumbnailWithCache> {
@@ -1107,7 +1341,6 @@ class _NoteThumbnailWithCacheState extends State<NoteThumbnailWithCache> {
       debugPrint('Thumbnail load error: $e');
     }
   }
-
 
   @override
   Widget build(BuildContext context) {

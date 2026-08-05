@@ -24,7 +24,6 @@ class SupabaseConfig {
       authOptions: const FlutterAuthClientOptions(
         authFlowType: AuthFlowType.pkce,
       ),
-      
     );
   }
 
@@ -118,5 +117,6 @@ class SupabaseConfig {
   }
 
   /// Listen to auth state changes
-  static Stream<AuthState> get authStateChanges => client.auth.onAuthStateChange;
+  static Stream<AuthState> get authStateChanges =>
+      client.auth.onAuthStateChange;
 }

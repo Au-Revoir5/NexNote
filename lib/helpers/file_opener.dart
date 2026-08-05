@@ -8,10 +8,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:nexnote/main.dart';
 
 class FileOpener {
-  static void _showSnack(
-    String message, {
-    Color color = Colors.black,
-  }) {
+  static void _showSnack(String message, {Color color = Colors.black}) {
     rootMessengerKey.currentState?.showSnackBar(
       SnackBar(
         content: Text(message),
@@ -21,6 +18,7 @@ class FileOpener {
       ),
     );
   }
+
   // -------------------------------
   // 🔽 DOWNLOAD TO DOWNLOADS FOLDER
   // -------------------------------
@@ -39,8 +37,6 @@ class FileOpener {
     return result.isGranted || result.isDenied;
   }
 
-
-
   static Future<void> downloadFileWithProgress(
     BuildContext context,
     String fileUrl,
@@ -49,13 +45,9 @@ class FileOpener {
     // Android < 13 permission
     final allowed = await _handleStoragePermission();
     if (!allowed) {
-      _showSnack(
-        'Storage permission required to download',
-        color: Colors.red,
-      );
+      _showSnack('Storage permission required to download', color: Colors.red);
       return;
     }
-
 
     try {
       final supabase = Supabase.instance.client;
@@ -101,7 +93,6 @@ class FileOpener {
         builder: (_) => _DownloadProgressDialog(progress),
       );
 
-
       final sink = file.openWrite();
 
       response.stream.listen(
@@ -117,41 +108,32 @@ class FileOpener {
           await sink.close();
           Navigator.pop(context);
 
-          _showSnack(
-            'Downloaded to Downloads/$fileName',
-            color: Colors.green,
-          );
+          _showSnack('Downloaded to Downloads/$fileName', color: Colors.green);
         },
         onError: (e) async {
           await sink.close();
           Navigator.pop(context);
-          _showSnack(
-            'Download failed',
-            color: Colors.red,
-          );
+          _showSnack('Download failed', color: Colors.red);
         },
         cancelOnError: true,
       );
     } catch (e) {
       if (context.mounted) {
-        _showSnack(
-          'Download error',
-          color: Colors.red,
-        );
+        _showSnack('Download error', color: Colors.red);
       }
     }
   }
 
-
-
-  static Future<void> openFile(BuildContext context, String fileUrl, String fileName) async {
+  static Future<void> openFile(
+    BuildContext context,
+    String fileUrl,
+    String fileName,
+  ) async {
     // Show loading dialog
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => const Center(
-        child: CircularProgressIndicator(),
-      ),
+      builder: (context) => const Center(child: CircularProgressIndicator()),
     );
 
     try {
@@ -159,7 +141,7 @@ class FileOpener {
       final supabase = Supabase.instance.client;
       final uri = Uri.parse(fileUrl);
       final pathSegments = uri.pathSegments;
-      
+
       // Supabase storage URLs:
       // /storage/v1/object/public/<bucket>/<path>
       // /storage/v1/object/sign/<bucket>/<path>
@@ -175,15 +157,14 @@ class FileOpener {
 
       final filePath = pathSegments.sublist(baseIndex + 2).join('/');
 
-      
       // Create signed URL
       final signedUrl = await supabase.storage
           .from('notes')
           .createSignedUrl(filePath, 3600); // Valid for 1 hour
-      
+
       // Download file
       final response = await http.get(Uri.parse(signedUrl));
-      
+
       if (response.statusCode != 200) {
         throw Exception('Failed to download file');
       }
@@ -191,18 +172,18 @@ class FileOpener {
       // Get temporary directory
       final directory = await getTemporaryDirectory();
       final file = File('${directory.path}/$fileName');
-      
+
       // Save file
       await file.writeAsBytes(response.bodyBytes);
-      
+
       // Close loading dialog
       if (context.mounted) {
         Navigator.pop(context);
       }
-      
+
       // Open file with default app
       final result = await OpenFilex.open(file.path);
-      
+
       if (result.type != ResultType.done) {
         throw Exception('Could not open file: ${result.message}');
       }
@@ -210,7 +191,7 @@ class FileOpener {
       // Close loading dialog if still open
       if (context.mounted) {
         Navigator.pop(context);
-        
+
         // Show error
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -247,4 +228,3 @@ class _DownloadProgressDialog extends StatelessWidget {
     );
   }
 }
-

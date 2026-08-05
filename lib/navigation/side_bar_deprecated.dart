@@ -26,8 +26,10 @@ class SideBar extends StatelessWidget {
                     color: Colors.white,
                   ),
                   child: Center(
-                    child: Text("PFP",
-                        style: TextStyle(color: Colors.black, fontSize: 20)),
+                    child: Text(
+                      "PFP",
+                      style: TextStyle(color: Colors.black, fontSize: 20),
+                    ),
                   ),
                 ),
                 SizedBox(width: 12),
@@ -40,12 +42,20 @@ class SideBar extends StatelessWidget {
                           mainAxisAlignment: MainAxisAlignment.center,
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text("Your Name",
-                                style: TextStyle(
-                                    color: Colors.white, fontSize: 14)),
-                            Text("placeholder@email.com",
-                                style: TextStyle(
-                                    color: Colors.white70, fontSize: 12)),
+                            Text(
+                              "Your Name",
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                              ),
+                            ),
+                            Text(
+                              "placeholder@email.com",
+                              style: TextStyle(
+                                color: Colors.white70,
+                                fontSize: 12,
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -63,8 +73,10 @@ class SideBar extends StatelessWidget {
               onNavigate?.call(0);
             },
             leading: Icon(Icons.home, color: Colors.white),
-            title: Text("Home",
-                style: TextStyle(color: Colors.white, fontSize: 16)),
+            title: Text(
+              "Home",
+              style: TextStyle(color: Colors.white, fontSize: 16),
+            ),
           ),
 
           // NOTES
@@ -74,8 +86,10 @@ class SideBar extends StatelessWidget {
               onNavigate?.call(4);
             },
             leading: Icon(Icons.note, color: Colors.white),
-            title: Text("My Notes",
-                style: TextStyle(color: Colors.white, fontSize: 16)),
+            title: Text(
+              "My Notes",
+              style: TextStyle(color: Colors.white, fontSize: 16),
+            ),
           ),
 
           // FAVORITES
@@ -88,8 +102,10 @@ class SideBar extends StatelessWidget {
               );
             },
             leading: Icon(Icons.star, color: Colors.white),
-            title: Text("My Favorites",
-                style: TextStyle(color: Colors.white, fontSize: 16)),
+            title: Text(
+              "My Favorites",
+              style: TextStyle(color: Colors.white, fontSize: 16),
+            ),
           ),
 
           // SETTINGS
@@ -102,8 +118,10 @@ class SideBar extends StatelessWidget {
               );
             },
             leading: Icon(Icons.settings, color: Colors.white),
-            title: Text("Settings",
-                style: TextStyle(color: Colors.white, fontSize: 16)),
+            title: Text(
+              "Settings",
+              style: TextStyle(color: Colors.white, fontSize: 16),
+            ),
           ),
 
           // LOGOUT
@@ -122,13 +140,16 @@ class SideBar extends StatelessWidget {
               });
             },
             leading: Icon(Icons.logout, color: Colors.white),
-            title: Text("Log Out",
-                style: TextStyle(color: Colors.white, fontSize: 16)),
+            title: Text(
+              "Log Out",
+              style: TextStyle(color: Colors.white, fontSize: 16),
+            ),
           ),
         ],
       ),
     );
   }
+
   void _showLogoutDialog(BuildContext context) {
     // Capture a safe navigation context (root navigator)
     final nav = Navigator.of(context, rootNavigator: true);

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../backend/supabase_config.dart';
+import '../helpers/supabase_config.dart';
 import '../navigation/bottom_bar.dart';
 import 'signup.dart';
 
@@ -81,7 +81,7 @@ class _LoginPageState extends State<LoginPage> {
       final GoogleSignIn googleSignIn = GoogleSignIn(
         scopes: ['email', 'profile'],
         serverClientId:
-          '283512644755-2o9fm682oki8hks77njn9n6rg6dbrrke.apps.googleusercontent.com'
+            '283512644755-2o9fm682oki8hks77njn9n6rg6dbrrke.apps.googleusercontent.com',
       );
 
       await googleSignIn.signOut();
@@ -100,8 +100,7 @@ class _LoginPageState extends State<LoginPage> {
       if (accessToken == null) throw Exception('Failed to get access token');
       if (idToken == null) throw Exception('Failed to get ID token');
 
-      final response =
-          await Supabase.instance.client.auth.signInWithIdToken(
+      final response = await Supabase.instance.client.auth.signInWithIdToken(
         provider: OAuthProvider.google,
         idToken: idToken,
         accessToken: accessToken,
@@ -117,14 +116,15 @@ class _LoginPageState extends State<LoginPage> {
         );
       } else {
         setState(
-            () => _errorMessage = "Google login failed. Please try again.");
+          () => _errorMessage = "Google login failed. Please try again.",
+        );
       }
     } catch (e) {
-        print(e);
-        setState(() {
-          _errorMessage = e.toString();
-        });
-      } finally {
+      print(e);
+      setState(() {
+        _errorMessage = e.toString();
+      });
+    } finally {
       if (mounted) setState(() => _isGoogleLoading = false);
     }
   }
@@ -133,9 +133,9 @@ class _LoginPageState extends State<LoginPage> {
     final email = _emailController.text.trim();
 
     if (email.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Enter your email first.")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Enter your email first.")));
       return;
     }
 
@@ -151,8 +151,10 @@ class _LoginPageState extends State<LoginPage> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-            content: Text(
-                "Failed to send reset link: ${_parseErrorMessage(e.toString())}")),
+          content: Text(
+            "Failed to send reset link: ${_parseErrorMessage(e.toString())}",
+          ),
+        ),
       );
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -160,10 +162,14 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   String _parseErrorMessage(String error) {
-    if (error.contains('Invalid login credentials')) return 'Invalid email or password';
-    if (error.contains('Email not confirmed')) return 'Please verify your email first';
-    if (error.contains('User not found')) return 'No account found with this email';
-    if (error.contains('Network')) return 'Network error. Please check your connection';
+    if (error.contains('Invalid login credentials'))
+      return 'Invalid email or password';
+    if (error.contains('Email not confirmed'))
+      return 'Please verify your email first';
+    if (error.contains('User not found'))
+      return 'No account found with this email';
+    if (error.contains('Network'))
+      return 'Network error. Please check your connection';
     return 'Login failed. Please try again';
   }
 
@@ -259,8 +265,10 @@ class _LoginPageState extends State<LoginPage> {
                         color: Colors.grey[600],
                         size: 20,
                       ),
-                      onPressed: () => setState(
-                          () => _obscurePassword = !_obscurePassword),
+                      onPressed:
+                          () => setState(
+                            () => _obscurePassword = !_obscurePassword,
+                          ),
                     ),
                   ),
                 ),
@@ -273,10 +281,7 @@ class _LoginPageState extends State<LoginPage> {
                     onPressed: _isLoading ? null : _handleForgotPassword,
                     child: Text(
                       'Forgot password?',
-                      style: TextStyle(
-                        color: Colors.grey[400],
-                        fontSize: 13,
-                      ),
+                      style: TextStyle(color: Colors.grey[400], fontSize: 13),
                     ),
                   ),
                 ),
@@ -295,23 +300,24 @@ class _LoginPageState extends State<LoginPage> {
                     ),
                     elevation: 0,
                   ),
-                  child: _isLoading
-                      ? const SizedBox(
-                          height: 22,
-                          width: 22,
-                          child: CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 2.5,
+                  child:
+                      _isLoading
+                          ? const SizedBox(
+                            height: 22,
+                            width: 22,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2.5,
+                            ),
+                          )
+                          : const Text(
+                            'Login',
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
-                        )
-                      : const Text(
-                          'Login',
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: Colors.white,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
                 ),
 
                 if (_errorMessage != null) ...[
@@ -319,7 +325,10 @@ class _LoginPageState extends State<LoginPage> {
                   Text(
                     _errorMessage!,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(color: Colors.redAccent, fontSize: 13),
+                    style: const TextStyle(
+                      color: Colors.redAccent,
+                      fontSize: 13,
+                    ),
                   ),
                 ],
 
@@ -329,7 +338,8 @@ class _LoginPageState extends State<LoginPage> {
                 Row(
                   children: [
                     Expanded(
-                        child: Divider(color: Colors.grey[700], thickness: 0.5)),
+                      child: Divider(color: Colors.grey[700], thickness: 0.5),
+                    ),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 12),
                       child: Text(
@@ -338,7 +348,8 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                     ),
                     Expanded(
-                        child: Divider(color: Colors.grey[700], thickness: 0.5)),
+                      child: Divider(color: Colors.grey[700], thickness: 0.5),
+                    ),
                   ],
                 ),
 
@@ -380,7 +391,8 @@ class _LoginPageState extends State<LoginPage> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                              builder: (context) => const SignUpPage()),
+                            builder: (context) => const SignUpPage(),
+                          ),
                         );
                       },
                       child: const Text(

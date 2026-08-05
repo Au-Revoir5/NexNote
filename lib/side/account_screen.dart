@@ -53,11 +53,12 @@ class _AccountScreenState extends State<AccountScreen> {
     final user = Supabase.instance.client.auth.currentUser;
     if (user == null) return;
 
-    final response = await Supabase.instance.client
-        .from('profiles')
-        .select('username, email')
-        .eq('id', user.id)
-        .single();
+    final response =
+        await Supabase.instance.client
+            .from('profiles')
+            .select('username, email')
+            .eq('id', user.id)
+            .single();
 
     setState(() {
       _nameController.text = response['username'] ?? '';
@@ -74,10 +75,13 @@ class _AccountScreenState extends State<AccountScreen> {
     final user = Supabase.instance.client.auth.currentUser;
     if (user == null) return;
 
-    await Supabase.instance.client.from('profiles').update({
-      'username': _nameController.text,
-      'email': _emailController.text,
-    }).eq('id', user.id);
+    await Supabase.instance.client
+        .from('profiles')
+        .update({
+          'username': _nameController.text,
+          'email': _emailController.text,
+        })
+        .eq('id', user.id);
 
     _saveLocal();
   }
@@ -186,8 +190,10 @@ class _AccountScreenState extends State<AccountScreen> {
                 _buildMenuItem(
                   icon: Icons.language_outlined,
                   title: 'Language',
-                  trailing: const Text('English',
-                      style: TextStyle(color: Colors.white54)),
+                  trailing: const Text(
+                    'English',
+                    style: TextStyle(color: Colors.white54),
+                  ),
                   onTap: () {},
                 ),
               ]),
@@ -237,9 +243,10 @@ class _AccountScreenState extends State<AccountScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label,
-                    style:
-                        const TextStyle(color: Colors.white54, fontSize: 13)),
+                Text(
+                  label,
+                  style: const TextStyle(color: Colors.white54, fontSize: 13),
+                ),
                 const SizedBox(height: 4),
 
                 if (isEditing)
@@ -247,8 +254,7 @@ class _AccountScreenState extends State<AccountScreen> {
                     controller: controller,
                     autofocus: true,
                     keyboardType: keyboardType,
-                    style:
-                        const TextStyle(color: Colors.white, fontSize: 16),
+                    style: const TextStyle(color: Colors.white, fontSize: 16),
                     decoration: const InputDecoration(
                       isDense: true,
                       contentPadding: EdgeInsets.zero,
@@ -258,8 +264,7 @@ class _AccountScreenState extends State<AccountScreen> {
                 else
                   Text(
                     controller.text,
-                    style:
-                        const TextStyle(color: Colors.white, fontSize: 16),
+                    style: const TextStyle(color: Colors.white, fontSize: 16),
                   ),
               ],
             ),
@@ -267,9 +272,7 @@ class _AccountScreenState extends State<AccountScreen> {
 
           IconButton(
             icon: Icon(
-              isEditing
-                  ? Icons.check_circle_outline
-                  : Icons.edit_outlined,
+              isEditing ? Icons.check_circle_outline : Icons.edit_outlined,
               color: isEditing ? kPrimaryColor : Colors.white54,
               size: 22,
             ),
@@ -292,8 +295,7 @@ class _AccountScreenState extends State<AccountScreen> {
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
         child: Padding(
-          padding:
-              const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           child: Row(
             children: [
               Icon(icon, color: Colors.white, size: 24),
@@ -310,8 +312,7 @@ class _AccountScreenState extends State<AccountScreen> {
               ),
               if (trailing != null) trailing,
               const SizedBox(width: 8),
-              const Icon(Icons.chevron_right,
-                  color: Colors.white54, size: 24),
+              const Icon(Icons.chevron_right, color: Colors.white54, size: 24),
             ],
           ),
         ),
@@ -322,10 +323,7 @@ class _AccountScreenState extends State<AccountScreen> {
   Widget _buildDivider() {
     return Padding(
       padding: const EdgeInsets.only(left: 56),
-      child: Container(
-        height: 0.5,
-        color: Colors.white10,
-      ),
+      child: Container(height: 0.5, color: Colors.white10),
     );
   }
 }

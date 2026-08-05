@@ -14,20 +14,12 @@ class FullscreenPdfPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final controller = PdfController(
-      document: PdfDocument.openData(pdfBytes),
-    );
+    final controller = PdfController(document: PdfDocument.openData(pdfBytes));
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(title),
-        backgroundColor: Colors.black,
-      ),
+      appBar: AppBar(title: Text(title), backgroundColor: Colors.black),
       backgroundColor: Colors.black,
-      body: PdfView(
-        controller: controller,
-        scrollDirection: Axis.vertical,
-      ),
+      body: PdfView(controller: controller, scrollDirection: Axis.vertical),
     );
   }
 }

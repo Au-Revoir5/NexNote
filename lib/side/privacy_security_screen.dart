@@ -108,7 +108,10 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
                   value: _privateProfile,
                   onChanged: (value) {
                     setState(() => _privateProfile = value);
-                    _savePrivacySecurityPreference('privacy_private_profile', value);
+                    _savePrivacySecurityPreference(
+                      'privacy_private_profile',
+                      value,
+                    );
                   },
                 ),
                 _buildDivider(),
@@ -120,7 +123,9 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
                   onChanged: (value) {
                     setState(() => _allowMessagesFromAnyone = value);
                     _savePrivacySecurityPreference(
-                        'privacy_messages_anyone', value);
+                      'privacy_messages_anyone',
+                      value,
+                    );
                   },
                 ),
                 _buildDivider(),
@@ -131,7 +136,10 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
                   value: _activityStatus,
                   onChanged: (value) {
                     setState(() => _activityStatus = value);
-                    _savePrivacySecurityPreference('privacy_activity_status', value);
+                    _savePrivacySecurityPreference(
+                      'privacy_activity_status',
+                      value,
+                    );
                   },
                 ),
               ]),
@@ -146,7 +154,10 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
                   value: _dataCollection,
                   onChanged: (value) {
                     setState(() => _dataCollection = value);
-                    _savePrivacySecurityPreference('privacy_data_collection', value);
+                    _savePrivacySecurityPreference(
+                      'privacy_data_collection',
+                      value,
+                    );
                   },
                 ),
                 _buildDivider(),
@@ -210,9 +221,7 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
         color: kCardColor,
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Column(
-        children: children,
-      ),
+      child: Column(children: children),
     );
   }
 
@@ -264,8 +273,11 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
                 ),
               ),
               const SizedBox(width: 8),
-              Icon(Icons.chevron_right,
-                  color: isDestructive ? Colors.red : Colors.white54, size: 24),
+              Icon(
+                Icons.chevron_right,
+                color: isDestructive ? Colors.red : Colors.white54,
+                size: 24,
+              ),
             ],
           ),
         ),
@@ -331,10 +343,7 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
   Widget _buildDivider() {
     return Padding(
       padding: const EdgeInsets.only(left: 56), // Aligns with text after icon
-      child: Container(
-        height: 0.5,
-        color: Colors.white10,
-      ),
+      child: Container(height: 0.5, color: Colors.white10),
     );
   }
 }

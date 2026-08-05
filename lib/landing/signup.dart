@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../backend/supabase_config.dart';
+import '../helpers/supabase_config.dart';
 import '../navigation/bottom_bar.dart';
 
 const kPrimaryColor = Color(0xFF6366F1);
@@ -50,10 +50,7 @@ class _SignUpPageState extends State<SignUpPage> {
       final authResponse = await SupabaseConfig.client.auth.signUp(
         email: email,
         password: password,
-        data: {
-          'username': username,
-          'full_name': username,
-        },
+        data: {'username': username, 'full_name': username},
       );
 
       final user = authResponse.user;
@@ -80,11 +77,16 @@ class _SignUpPageState extends State<SignUpPage> {
   }
 
   String _parseErrorMessage(String error) {
-    if (error.contains('User already registered')) return 'Email already registered. Please login instead.';
-    if (error.contains('Password should be at least')) return 'Password must be at least 6 characters';
-    if (error.contains('Invalid email')) return 'Please enter a valid email address';
-    if (error.contains('Network')) return 'Network error. Please check your connection';
-    if (error.contains('Unable to validate email')) return 'Invalid email format';
+    if (error.contains('User already registered'))
+      return 'Email already registered. Please login instead.';
+    if (error.contains('Password should be at least'))
+      return 'Password must be at least 6 characters';
+    if (error.contains('Invalid email'))
+      return 'Please enter a valid email address';
+    if (error.contains('Network'))
+      return 'Network error. Please check your connection';
+    if (error.contains('Unable to validate email'))
+      return 'Invalid email format';
     return 'Sign up failed. Please try again';
   }
 
@@ -92,21 +94,36 @@ class _SignUpPageState extends State<SignUpPage> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        backgroundColor: kCardColor,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
-        content: Text(message, style: TextStyle(color: Colors.grey[400])),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              Navigator.of(context).pop();
-            },
-            child: const Text('OK', style: TextStyle(color: kPrimaryColor, fontWeight: FontWeight.w600)),
+      builder:
+          (context) => AlertDialog(
+            backgroundColor: kCardColor,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: Text(
+              title,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            content: Text(message, style: TextStyle(color: Colors.grey[400])),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  Navigator.of(context).pop();
+                },
+                child: const Text(
+                  'OK',
+                  style: TextStyle(
+                    color: kPrimaryColor,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
     );
   }
 
@@ -220,8 +237,10 @@ class _SignUpPageState extends State<SignUpPage> {
                         color: Colors.grey[600],
                         size: 20,
                       ),
-                      onPressed: () =>
-                          setState(() => _obscurePassword = !_obscurePassword),
+                      onPressed:
+                          () => setState(
+                            () => _obscurePassword = !_obscurePassword,
+                          ),
                     ),
                   ),
                 ),
@@ -240,23 +259,24 @@ class _SignUpPageState extends State<SignUpPage> {
                     ),
                     elevation: 0,
                   ),
-                  child: _isLoading
-                      ? const SizedBox(
-                          height: 22,
-                          width: 22,
-                          child: CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 2.5,
+                  child:
+                      _isLoading
+                          ? const SizedBox(
+                            height: 22,
+                            width: 22,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2.5,
+                            ),
+                          )
+                          : const Text(
+                            'Sign Up',
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
-                        )
-                      : const Text(
-                          'Sign Up',
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: Colors.white,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
                 ),
 
                 if (_errorMessage != null) ...[
@@ -264,7 +284,10 @@ class _SignUpPageState extends State<SignUpPage> {
                   Text(
                     _errorMessage!,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(color: Colors.redAccent, fontSize: 13),
+                    style: const TextStyle(
+                      color: Colors.redAccent,
+                      fontSize: 13,
+                    ),
                   ),
                 ],
 
@@ -273,7 +296,9 @@ class _SignUpPageState extends State<SignUpPage> {
                 // Divider
                 Row(
                   children: [
-                    Expanded(child: Divider(color: Colors.grey[700], thickness: 0.5)),
+                    Expanded(
+                      child: Divider(color: Colors.grey[700], thickness: 0.5),
+                    ),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 12),
                       child: Text(
@@ -281,7 +306,9 @@ class _SignUpPageState extends State<SignUpPage> {
                         style: TextStyle(color: Colors.grey[600], fontSize: 13),
                       ),
                     ),
-                    Expanded(child: Divider(color: Colors.grey[700], thickness: 0.5)),
+                    Expanded(
+                      child: Divider(color: Colors.grey[700], thickness: 0.5),
+                    ),
                   ],
                 ),
 
@@ -291,7 +318,9 @@ class _SignUpPageState extends State<SignUpPage> {
                 OutlinedButton.icon(
                   onPressed: () {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text("Google sign up coming soon")),
+                      const SnackBar(
+                        content: Text("Google sign up coming soon"),
+                      ),
                     );
                   },
                   style: OutlinedButton.styleFrom(
@@ -323,7 +352,9 @@ class _SignUpPageState extends State<SignUpPage> {
                 OutlinedButton.icon(
                   onPressed: () {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text("Apple sign up coming soon")),
+                      const SnackBar(
+                        content: Text("Apple sign up coming soon"),
+                      ),
                     );
                   },
                   style: OutlinedButton.styleFrom(

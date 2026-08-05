@@ -84,28 +84,34 @@ class SettingsScreen extends StatelessWidget {
                 ),
               ]),
               const SizedBox(height: 24),
-              
+
               // ... (rest of your code is unchanged)
               _buildSectionTitle('Help & Support'),
               const SizedBox(height: 12),
               _buildMenuCard([
                 _buildMenuItem(
-                    icon: Icons.warning_amber_outlined,
-                    title: 'Report a Problem',
-                    onTap: () {}),
+                  icon: Icons.warning_amber_outlined,
+                  title: 'Report a Problem',
+                  onTap: () {},
+                ),
                 _buildDivider(),
                 _buildMenuItem(
-                    icon: Icons.mail_outline,
-                    title: 'Contact Support',
-                    onTap: () {}),
+                  icon: Icons.mail_outline,
+                  title: 'Contact Support',
+                  onTap: () {},
+                ),
                 _buildDivider(),
                 _buildMenuItem(
-                    icon: Icons.chat_bubble_outline,
-                    title: 'Give Feedback',
-                    onTap: () {}),
+                  icon: Icons.chat_bubble_outline,
+                  title: 'Give Feedback',
+                  onTap: () {},
+                ),
                 _buildDivider(),
                 _buildMenuItem(
-                    icon: Icons.info_outline, title: 'App Info', onTap: () {}),
+                  icon: Icons.info_outline,
+                  title: 'App Info',
+                  onTap: () {},
+                ),
               ]),
               const SizedBox(height: 24),
               _buildDeleteAccountButton(),
@@ -133,11 +139,7 @@ class SettingsScreen extends StatelessWidget {
               colors: [Colors.grey[800]!, Colors.grey[700]!],
             ),
           ),
-          child: const Icon(
-            Icons.person,
-            color: Colors.white70,
-            size: 32,
-          ),
+          child: const Icon(Icons.person, color: Colors.white70, size: 32),
         ),
         const SizedBox(width: 16),
         const Expanded(
@@ -155,10 +157,7 @@ class SettingsScreen extends StatelessWidget {
               SizedBox(height: 4),
               Text(
                 'vextor@gmail.com',
-                style: TextStyle(
-                  color: Colors.white54,
-                  fontSize: 14,
-                ),
+                style: TextStyle(color: Colors.white54, fontSize: 14),
               ),
             ],
           ),
@@ -186,9 +185,7 @@ class SettingsScreen extends StatelessWidget {
         color: const Color(0xFF1C1C1E),
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Column(
-        children: children,
-      ),
+      child: Column(children: children),
     );
   }
 
@@ -207,11 +204,7 @@ class SettingsScreen extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           child: Row(
             children: [
-              Icon(
-                icon,
-                color: Colors.white,
-                size: 24,
-              ),
+              Icon(icon, color: Colors.white, size: 24),
               const SizedBox(width: 16),
               Expanded(
                 child: Text(
@@ -223,11 +216,7 @@ class SettingsScreen extends StatelessWidget {
                   ),
                 ),
               ),
-              const Icon(
-                Icons.chevron_right,
-                color: Colors.white54,
-                size: 24,
-              ),
+              const Icon(Icons.chevron_right, color: Colors.white54, size: 24),
             ],
           ),
         ),
@@ -239,10 +228,7 @@ class SettingsScreen extends StatelessWidget {
     // ... same as before
     return Padding(
       padding: const EdgeInsets.only(left: 56),
-      child: Container(
-        height: 0.5,
-        color: Colors.white10,
-      ),
+      child: Container(height: 0.5, color: Colors.white10),
     );
   }
 
@@ -262,11 +248,7 @@ class SettingsScreen extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
             child: Row(
               children: [
-                const Icon(
-                  Icons.delete_outline,
-                  color: Colors.red,
-                  size: 24,
-                ),
+                const Icon(Icons.delete_outline, color: Colors.red, size: 24),
                 const SizedBox(width: 16),
                 const Expanded(
                   child: Text(

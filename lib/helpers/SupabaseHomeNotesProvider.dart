@@ -34,14 +34,12 @@ class SupabaseHomeNotesProvider implements HomeNotesProvider {
 
     print('🟢 recentNotes(): raw result = $res');
 
-    final list = (res as List)
-        .map((e) => _mapNote(e as Map<String, dynamic>))
-        .toList();
+    final list =
+        (res as List).map((e) => _mapNote(e as Map<String, dynamic>)).toList();
 
     print('🟢 recentNotes(): mapped length = ${list.length}');
     return list;
   }
-
 
   // ---------------- COMMUNITY ----------------
   @override
@@ -78,10 +76,10 @@ class SupabaseHomeNotesProvider implements HomeNotesProvider {
         fileType: n['file_type'],
         authorAvatar: n['profiles']?['avatar_url'],
         authorName: n['profiles']?['username'] ?? 'Anonymous',
+        publisherId: n['publisher_id'] as String?,
       );
     }).toList();
   }
-
 
   // ---------------- FAVORITES ----------------
   @override
@@ -133,6 +131,7 @@ class SupabaseHomeNotesProvider implements HomeNotesProvider {
       fileUrl: n['file_url'] as String,
       fileType: n['file_type'] as String,
       authorName: n['profiles']?['username'] ?? 'Anonymous',
+      publisherId: n['publisher_id'] as String?,
     );
   }
 }

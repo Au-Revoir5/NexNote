@@ -16,9 +16,10 @@ Future<Uint8List> _downloadFile(String fileUrl) async {
       final segments = uri.pathSegments;
 
       // works for both public & signed URLs
-      final bucketIndex = segments.indexOf('public') != -1
-          ? segments.indexOf('public') + 1
-          : segments.indexOf('sign') + 1;
+      final bucketIndex =
+          segments.indexOf('public') != -1
+              ? segments.indexOf('public') + 1
+              : segments.indexOf('sign') + 1;
 
       if (bucketIndex > 0 && bucketIndex < segments.length) {
         final bucket = segments[bucketIndex];
@@ -88,7 +89,11 @@ Future<String> generateDocxPreview(String fileUrl) async {
     if (texts.trim().isEmpty) continue;
 
     // Detect heading style
-    final style = p.findAllElements('w:pStyle').map((e) => e.getAttribute('w:val')).firstOrNull;
+    final style =
+        p
+            .findAllElements('w:pStyle')
+            .map((e) => e.getAttribute('w:val'))
+            .firstOrNull;
 
     if (style != null && style.toLowerCase().contains('heading')) {
       buffer.writeln(texts.trim().toUpperCase());
@@ -99,10 +104,8 @@ Future<String> generateDocxPreview(String fileUrl) async {
     buffer.writeln(); // paragraph spacing
   }
 
-  final cleaned = buffer
-      .toString()
-      .replaceAll(RegExp(r'\n{3,}'), '\n\n')
-      .trim();
+  final cleaned =
+      buffer.toString().replaceAll(RegExp(r'\n{3,}'), '\n\n').trim();
 
   // Limit size for thumbnails
   if (cleaned.length > 700) {
