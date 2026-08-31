@@ -15,8 +15,13 @@ const kAccentYellow = Color(0xFFFBBF24);
 
 class FavoritesPage extends StatefulWidget {
   final bool showAppBar;
+  final ValueChanged<bool>? onSelectionModeChanged;
 
-  const FavoritesPage({super.key, this.showAppBar = true});
+  const FavoritesPage({
+    super.key,
+    this.showAppBar = true,
+    this.onSelectionModeChanged,
+  });
 
   @override
   _FavoritesPageState createState() => _FavoritesPageState();
@@ -31,10 +36,20 @@ class _FavoritesPageState extends State<FavoritesPage> {
   bool _isLoading = true;
   List<Map<String, dynamic>> _favoriteNotes = [];
 
+  // ---- Selection mode ----
+  final Set<String> _selectedNoteIds = {};
+  bool _selectionMode = false;
+
   @override
   void initState() {
     super.initState();
     _loadFavorites();
+  }
+
+  @override
+  void dispose() {
+    _copyResetTimer?.cancel();
+    super.dispose();
   }
 
   bool _isOwner(Map<String, dynamic> note) {
@@ -137,6 +152,179 @@ class _FavoritesPageState extends State<FavoritesPage> {
     }
   }
 
+  // ---------------------------------------------------------------------
+  // SELECTION MODE
+  // ---------------------------------------------------------------------
+
+  void _setSelectionMode(bool value) {
+    setState(() {
+      _selectionMode = value;
+      if (!value) _selectedNoteIds.clear();
+    });
+    widget.onSelectionModeChanged?.call(value);
+  }
+
+  void _onLongPressNote(String noteId) {
+    if (!_selectionMode) {
+      _setSelectionMode(true);
+    }
+    setState(() {
+      _selectedNoteIds.add(noteId);
+    });
+  }
+
+  void _onTapNote(String noteId, VoidCallback openNote) {
+    if (_selectionMode) {
+      setState(() {
+        if (_selectedNoteIds.contains(noteId)) {
+          _selectedNoteIds.remove(noteId);
+          if (_selectedNoteIds.isEmpty) {
+            _setSelectionMode(false);
+          }
+        } else {
+          _selectedNoteIds.add(noteId);
+        }
+      });
+    } else {
+      openNote();
+    }
+  }
+
+  void _clearSelection() {
+    _setSelectionMode(false);
+  }
+
+  void _selectAll() {
+    setState(() {
+      _selectedNoteIds
+        ..clear()
+        ..addAll(_favoriteNotes.map((n) => n['id'] as String));
+    });
+  }
+
+  Future<void> _removeSelectedFromFavorites() async {
+    final user = _supabase.auth.currentUser;
+    if (user == null || _selectedNoteIds.isEmpty) return;
+
+    final count = _selectedNoteIds.length;
+
+    try {
+      await _supabase
+          .from('favorites')
+          .delete()
+          .eq('user_id', user.id)
+          .inFilter('note_id', _selectedNoteIds.toList());
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$count removed from favorites')),
+      );
+
+      _clearSelection();
+      await _loadFavorites();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to remove from favorites: $e')),
+      );
+    }
+  }
+
+  Future<void> _deleteSelectedNotes() async {
+    final ownedSelected =
+        _favoriteNotes
+            .where(
+              (n) => _selectedNoteIds.contains(n['id']) && _isOwner(n),
+            )
+            .toList();
+
+    if (ownedSelected.isEmpty) {
+      // Nothing owned was selected (e.g. only community notes) - nothing to
+      // hard-delete, so just bail without hitting the DB.
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No owned notes in your selection to delete'),
+          ),
+        );
+      }
+      return;
+    }
+
+    try {
+      for (final note in ownedSelected) {
+        final fileName = (note['file_url'] as String).split('/').last;
+        try {
+          await _supabase.storage.from('notes').remove([fileName]);
+        } catch (_) {
+          // Best-effort storage cleanup; still proceed to remove the DB row.
+        }
+      }
+
+      await _supabase
+          .from('notes')
+          .delete()
+          .inFilter('id', ownedSelected.map((n) => n['id'] as String).toList());
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${ownedSelected.length} note(s) deleted')),
+      );
+
+      _clearSelection();
+      await _loadFavorites();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to delete notes: $e')));
+    }
+  }
+
+  void _confirmBatchDelete() {
+    final ownedCount =
+        _favoriteNotes
+            .where((n) => _selectedNoteIds.contains(n['id']) && _isOwner(n))
+            .length;
+
+    showDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            backgroundColor: kCardColor,
+            title: const Text(
+              'Delete notes',
+              style: TextStyle(color: Colors.white),
+            ),
+            content: Text(
+              ownedCount == _selectedNoteIds.length
+                  ? 'Permanently delete $ownedCount selected note(s)? This cannot be undone.'
+                  : 'Only $ownedCount of ${_selectedNoteIds.length} selected notes are yours to delete. The rest will be skipped.',
+              style: const TextStyle(color: Colors.grey),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text(
+                  'Cancel',
+                  style: TextStyle(color: Colors.grey),
+                ),
+              ),
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _deleteSelectedNotes();
+                },
+                child: const Text(
+                  'Delete',
+                  style: TextStyle(color: Colors.red),
+                ),
+              ),
+            ],
+          ),
+    );
+  }
+
   String _getTimeAgo(String? timestamp) {
     if (timestamp == null) return 'Unknown';
 
@@ -160,6 +348,70 @@ class _FavoritesPageState extends State<FavoritesPage> {
     }
   }
 
+  // ---------------------------------------------------------------------
+  // APP BAR: swaps to a selection bar when _selectionMode is true. Since
+  // AppBar always paints full-bleed under the status bar, this avoids the
+  // "transparent gap at the top" bug that a manual overlay toolbar can hit.
+  // ---------------------------------------------------------------------
+
+  PreferredSizeWidget? _buildAppBar(double textScale, double iconSize) {
+    if (!widget.showAppBar && !_selectionMode) return null;
+
+    if (_selectionMode) {
+      return AppBar(
+        backgroundColor: kDarkSurface,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.close, color: Colors.white),
+          onPressed: _clearSelection,
+        ),
+        title: Text(
+          '${_selectedNoteIds.length} selected',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 18 * textScale,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.select_all, color: Colors.white),
+            tooltip: 'Select all',
+            onPressed: _selectAll,
+          ),
+          IconButton(
+            icon: const Icon(Icons.star_border, color: Colors.white),
+            tooltip: 'Remove from favorites',
+            onPressed:
+                _selectedNoteIds.isEmpty ? null : _removeSelectedFromFavorites,
+          ),
+          IconButton(
+            icon: const Icon(Icons.delete_outline, color: Colors.white),
+            tooltip: 'Delete',
+            onPressed: _selectedNoteIds.isEmpty ? null : _confirmBatchDelete,
+          ),
+        ],
+      );
+    }
+
+    return AppBar(
+      backgroundColor: kDarkSurface,
+      elevation: 0,
+      leading: IconButton(
+        icon: Icon(Icons.arrow_back, color: Colors.white, size: iconSize),
+        onPressed: () => Navigator.pop(context),
+      ),
+      title: Text(
+        "My Favorites",
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: 18 * textScale,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
@@ -173,208 +425,197 @@ class _FavoritesPageState extends State<FavoritesPage> {
     final myNotes = sortedItems.where(_isOwner).toList();
     final communityNotes = sortedItems.where((n) => !_isOwner(n)).toList();
 
-    return Scaffold(
-      backgroundColor: kDarkSurface,
-      appBar:
-          widget.showAppBar
-              ? AppBar(
-                backgroundColor: kDarkSurface,
-                elevation: 0,
-                leading: IconButton(
-                  icon: Icon(
-                    Icons.arrow_back,
-                    color: Colors.white,
-                    size: iconSize,
-                  ),
-                  onPressed: () => Navigator.pop(context),
-                ),
-                title: Text(
-                  "My Favorites",
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18 * textScale,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              )
-              : null,
-      body:
-          _isLoading
-              ? const Center(
-                child: CircularProgressIndicator(color: kPrimaryColor),
-              )
-              : Column(
-                children: [
-                  Padding(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: padding,
-                      vertical: padding / 2,
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: GestureDetector(
-                            onTap: _showSortOptions,
-                            child: Row(
-                              children: [
-                                Flexible(
-                                  child: Text(
-                                    sortBy,
-                                    style: TextStyle(
-                                      color: Colors.white70,
-                                      fontSize: 16 * textScale,
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                                const Icon(
-                                  Icons.keyboard_arrow_down,
-                                  color: Colors.white70,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        IconButton(
-                          icon: Icon(
-                            isGridView ? Icons.list : Icons.grid_view,
-                            color: Colors.white70,
-                            size: iconSize,
-                          ),
-                          onPressed: () {
-                            setState(() {
-                              isGridView = !isGridView;
-                            });
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                  Expanded(
-                    child:
-                        _favoriteNotes.isEmpty
-                            ? Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
+    return WillPopScope(
+      onWillPop: () async {
+        if (_selectionMode) {
+          _clearSelection();
+          return false;
+        }
+        return true;
+      },
+      child: Scaffold(
+        backgroundColor: kDarkSurface,
+        appBar: _buildAppBar(textScale, iconSize),
+        body:
+            _isLoading
+                ? const Center(
+                  child: CircularProgressIndicator(color: kPrimaryColor),
+                )
+                : Column(
+                  children: [
+                    Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: padding,
+                        vertical: padding / 2,
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: _selectionMode ? null : _showSortOptions,
+                              child: Row(
                                 children: [
-                                  Icon(
-                                    Icons.star_border,
-                                    size: 64,
-                                    color: Colors.grey[600],
-                                  ),
-                                  const SizedBox(height: 16),
-                                  Text(
-                                    'No favorites yet',
-                                    style: TextStyle(
-                                      color: Colors.grey[400],
-                                      fontSize: 16,
+                                  Flexible(
+                                    child: Text(
+                                      sortBy,
+                                      style: TextStyle(
+                                        color: Colors.white70,
+                                        fontSize: 16 * textScale,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    'Tap the star icon on any note to add it here',
-                                    style: TextStyle(
-                                      color: Colors.grey[600],
-                                      fontSize: 14,
-                                    ),
-                                    textAlign: TextAlign.center,
+                                  const Icon(
+                                    Icons.keyboard_arrow_down,
+                                    color: Colors.white70,
                                   ),
                                 ],
                               ),
-                            )
-                            : RefreshIndicator(
-                              color: kPrimaryColor,
-                              onRefresh: _loadFavorites,
-                              child: SingleChildScrollView(
-                                physics: const AlwaysScrollableScrollPhysics(),
+                            ),
+                          ),
+                          IconButton(
+                            icon: Icon(
+                              isGridView ? Icons.list : Icons.grid_view,
+                              color: Colors.white70,
+                              size: iconSize,
+                            ),
+                            onPressed: () {
+                              setState(() {
+                                isGridView = !isGridView;
+                              });
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      child:
+                          _favoriteNotes.isEmpty
+                              ? Center(
                                 child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    if (myNotes.isNotEmpty) ...[
-                                      Padding(
-                                        padding: EdgeInsets.symmetric(
-                                          horizontal: padding,
-                                          vertical: padding / 2,
-                                        ),
-                                        child: Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.spaceBetween,
-                                          children: [
-                                            Text(
-                                              'My Notes',
-                                              style: TextStyle(
-                                                color: Colors.white,
-                                                fontSize: 16 * textScale,
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                            ),
-                                            Text(
-                                              '${myNotes.length} note${myNotes.length != 1 ? 's' : ''}',
-                                              style: TextStyle(
-                                                color: Colors.grey[500],
-                                                fontSize: 13 * textScale,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
+                                    Icon(
+                                      Icons.star_border,
+                                      size: 64,
+                                      color: Colors.grey[600],
+                                    ),
+                                    const SizedBox(height: 16),
+                                    Text(
+                                      'No favorites yet',
+                                      style: TextStyle(
+                                        color: Colors.grey[400],
+                                        fontSize: 16,
                                       ),
-                                      isGridView
-                                          ? _buildGridView(myNotes, width)
-                                          : _buildListView(
-                                            myNotes,
-                                            textScale,
-                                            iconSize,
-                                          ),
-                                    ],
-                                    if (communityNotes.isNotEmpty) ...[
-                                      Padding(
-                                        padding: EdgeInsets.fromLTRB(
-                                          padding,
-                                          myNotes.isNotEmpty ? 24 : padding / 2,
-                                          padding,
-                                          padding / 2,
-                                        ),
-                                        child: Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.spaceBetween,
-                                          children: [
-                                            Text(
-                                              'From Community',
-                                              style: TextStyle(
-                                                color: Colors.white,
-                                                fontSize: 16 * textScale,
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                            ),
-                                            Text(
-                                              '${communityNotes.length} note${communityNotes.length != 1 ? 's' : ''}',
-                                              style: TextStyle(
-                                                color: Colors.grey[500],
-                                                fontSize: 13 * textScale,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      'Tap the star icon on any note to add it here',
+                                      style: TextStyle(
+                                        color: Colors.grey[600],
+                                        fontSize: 14,
                                       ),
-                                      isGridView
-                                          ? _buildGridView(
-                                            communityNotes,
-                                            width,
-                                          )
-                                          : _buildListView(
-                                            communityNotes,
-                                            textScale,
-                                            iconSize,
-                                          ),
-                                    ],
-                                    const SizedBox(height: 24),
+                                      textAlign: TextAlign.center,
+                                    ),
                                   ],
                                 ),
+                              )
+                              : RefreshIndicator(
+                                color: kPrimaryColor,
+                                onRefresh: _loadFavorites,
+                                child: SingleChildScrollView(
+                                  physics: const AlwaysScrollableScrollPhysics(),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      if (myNotes.isNotEmpty) ...[
+                                        Padding(
+                                          padding: EdgeInsets.symmetric(
+                                            horizontal: padding,
+                                            vertical: padding / 2,
+                                          ),
+                                          child: Row(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.spaceBetween,
+                                            children: [
+                                              Text(
+                                                'My Notes',
+                                                style: TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 16 * textScale,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                              Text(
+                                                '${myNotes.length} note${myNotes.length != 1 ? 's' : ''}',
+                                                style: TextStyle(
+                                                  color: Colors.grey[500],
+                                                  fontSize: 13 * textScale,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        isGridView
+                                            ? _buildGridView(myNotes, width)
+                                            : _buildListView(
+                                              myNotes,
+                                              textScale,
+                                              iconSize,
+                                            ),
+                                      ],
+                                      if (communityNotes.isNotEmpty) ...[
+                                        Padding(
+                                          padding: EdgeInsets.fromLTRB(
+                                            padding,
+                                            myNotes.isNotEmpty
+                                                ? 24
+                                                : padding / 2,
+                                            padding,
+                                            padding / 2,
+                                          ),
+                                          child: Row(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.spaceBetween,
+                                            children: [
+                                              Text(
+                                                'From Community',
+                                                style: TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 16 * textScale,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                              Text(
+                                                '${communityNotes.length} note${communityNotes.length != 1 ? 's' : ''}',
+                                                style: TextStyle(
+                                                  color: Colors.grey[500],
+                                                  fontSize: 13 * textScale,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        isGridView
+                                            ? _buildGridView(
+                                              communityNotes,
+                                              width,
+                                            )
+                                            : _buildListView(
+                                              communityNotes,
+                                              textScale,
+                                              iconSize,
+                                            ),
+                                      ],
+                                      const SizedBox(height: 24),
+                                    ],
+                                  ),
+                                ),
                               ),
-                            ),
-                  ),
-                ],
-              ),
+                    ),
+                  ],
+                ),
+      ),
     );
   }
 
@@ -460,16 +701,21 @@ class _FavoritesPageState extends State<FavoritesPage> {
       itemCount: items.length,
       itemBuilder: (context, index) {
         final note = items[index];
+        final noteId = note['id'] as String;
         return FavoriteGridItemWidget(
           note: note,
           timeAgo: _getTimeAgo(note['updated_at']),
-          onTap: () {
-            FileOpener.openFile(
-              context,
-              note['file_url'],
-              '${note['title']}.${note['file_type']}',
-            );
-          },
+          selectionMode: _selectionMode,
+          isSelected: _selectedNoteIds.contains(noteId),
+          onTap:
+              () => _onTapNote(noteId, () {
+                FileOpener.openFile(
+                  context,
+                  note['file_url'],
+                  '${note['title']}.${note['file_type']}',
+                );
+              }),
+          onLongPress: () => _onLongPressNote(noteId),
           onMenuTap: () => _showItemMenu(note),
         );
       },
@@ -488,16 +734,21 @@ class _FavoritesPageState extends State<FavoritesPage> {
       itemCount: items.length,
       itemBuilder: (context, index) {
         final note = items[index];
+        final noteId = note['id'] as String;
         return FavoriteItemWidget(
           note: note,
           timeAgo: _getTimeAgo(note['updated_at']),
-          onTap: () {
-            FileOpener.openFile(
-              context,
-              note['file_url'],
-              '${note['title']}.${note['file_type']}',
-            );
-          },
+          selectionMode: _selectionMode,
+          isSelected: _selectedNoteIds.contains(noteId),
+          onTap:
+              () => _onTapNote(noteId, () {
+                FileOpener.openFile(
+                  context,
+                  note['file_url'],
+                  '${note['title']}.${note['file_type']}',
+                );
+              }),
+          onLongPress: () => _onLongPressNote(noteId),
           onMenuTap: () => _showItemMenu(note),
           textScale: textScale,
           iconSize: iconSize,
@@ -1006,7 +1257,10 @@ class _FavoritesPageState extends State<FavoritesPage> {
 class FavoriteGridItemWidget extends StatefulWidget {
   final Map<String, dynamic> note;
   final String timeAgo;
+  final bool selectionMode;
+  final bool isSelected;
   final VoidCallback onTap;
+  final VoidCallback onLongPress;
   final VoidCallback onMenuTap;
 
   const FavoriteGridItemWidget({
@@ -1014,7 +1268,10 @@ class FavoriteGridItemWidget extends StatefulWidget {
     required this.note,
     required this.timeAgo,
     required this.onTap,
+    required this.onLongPress,
     required this.onMenuTap,
+    this.selectionMode = false,
+    this.isSelected = false,
   });
 
   @override
@@ -1033,9 +1290,14 @@ class _FavoriteGridItemWidgetState extends State<FavoriteGridItemWidget> {
       decoration: BoxDecoration(
         color: kCardColor,
         borderRadius: BorderRadius.circular(12),
+        border:
+            widget.isSelected
+                ? Border.all(color: kPrimaryColor, width: 1.5)
+                : null,
       ),
       child: InkWell(
         onTap: widget.onTap,
+        onLongPress: widget.onLongPress,
         borderRadius: BorderRadius.circular(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1092,6 +1354,21 @@ class _FavoriteGridItemWidgetState extends State<FavoriteGridItemWidget> {
                           ),
                         ),
                       ),
+                    if (widget.selectionMode)
+                      Positioned(
+                        top: 8,
+                        left: 8,
+                        child: Icon(
+                          widget.isSelected
+                              ? Icons.check_circle
+                              : Icons.radio_button_unchecked,
+                          color:
+                              widget.isSelected
+                                  ? kPrimaryColor
+                                  : Colors.white.withOpacity(0.8),
+                          size: 22,
+                        ),
+                      ),
                   ],
                 ),
               ),
@@ -1125,14 +1402,15 @@ class _FavoriteGridItemWidgetState extends State<FavoriteGridItemWidget> {
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      GestureDetector(
-                        onTap: widget.onMenuTap,
-                        child: Icon(
-                          Icons.more_vert,
-                          color: Colors.grey[400],
-                          size: 18,
+                      if (!widget.selectionMode)
+                        GestureDetector(
+                          onTap: widget.onMenuTap,
+                          child: Icon(
+                            Icons.more_vert,
+                            color: Colors.grey[400],
+                            size: 18,
+                          ),
                         ),
-                      ),
                     ],
                   ),
                   const SizedBox(height: 4),
@@ -1186,7 +1464,10 @@ class _FavoriteGridItemWidgetState extends State<FavoriteGridItemWidget> {
 class FavoriteItemWidget extends StatelessWidget {
   final Map<String, dynamic> note;
   final String timeAgo;
+  final bool selectionMode;
+  final bool isSelected;
   final VoidCallback onTap;
+  final VoidCallback onLongPress;
   final VoidCallback onMenuTap;
   final double textScale;
   final double iconSize;
@@ -1196,31 +1477,57 @@ class FavoriteItemWidget extends StatelessWidget {
     required this.note,
     required this.timeAgo,
     required this.onTap,
+    required this.onLongPress,
     required this.onMenuTap,
     required this.textScale,
     required this.iconSize,
+    this.selectionMode = false,
+    this.isSelected = false,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: isSelected ? kPrimaryColor.withOpacity(0.18) : null,
+        borderRadius: BorderRadius.circular(8),
+        border:
+            isSelected ? Border.all(color: kPrimaryColor, width: 1.5) : null,
+      ),
       child: InkWell(
         onTap: onTap,
+        onLongPress: onLongPress,
         borderRadius: BorderRadius.circular(8),
         child: Padding(
           padding: const EdgeInsets.all(8),
           child: Row(
             children: [
-              Container(
+              SizedBox(
                 width: 60,
                 height: 60,
-                decoration: BoxDecoration(
-                  color: _getColor().withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.grey[700]!, width: 1),
-                ),
-                child: Icon(_getIcon(), color: _getColor(), size: iconSize + 4),
+                child:
+                    isSelected
+                        ? Icon(
+                          Icons.check_circle,
+                          color: kPrimaryColor,
+                          size: iconSize + 8,
+                        )
+                        : Container(
+                          decoration: BoxDecoration(
+                            color: _getColor().withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: Colors.grey[700]!,
+                              width: 1,
+                            ),
+                          ),
+                          child: Icon(
+                            _getIcon(),
+                            color: _getColor(),
+                            size: iconSize + 4,
+                          ),
+                        ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -1246,14 +1553,15 @@ class FavoriteItemWidget extends StatelessWidget {
                   ],
                 ),
               ),
-              IconButton(
-                icon: Icon(
-                  Icons.more_vert,
-                  color: Colors.grey[400],
-                  size: iconSize,
+              if (!selectionMode)
+                IconButton(
+                  icon: Icon(
+                    Icons.more_vert,
+                    color: Colors.grey[400],
+                    size: iconSize,
+                  ),
+                  onPressed: onMenuTap,
                 ),
-                onPressed: onMenuTap,
-              ),
             ],
           ),
         ),

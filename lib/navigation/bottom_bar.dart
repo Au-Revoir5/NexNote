@@ -46,7 +46,15 @@ class _BottomBarState extends State<BottomBar> {
           });
         },
       ),
-      const FavoritesPage(showAppBar: false),
+      FavoritesPage(
+        showAppBar: false,
+        onSelectionModeChanged: (isSelecting) {
+          setState(() {
+            _hideAppBar = isSelecting;
+            _hideBottomBar = isSelecting;
+          });
+        },
+      ),
       NotesPage(
         onSelectionModeChanged: (isSelecting) {
           setState(() {
